@@ -329,7 +329,7 @@
   <div id="mv-error" hidden></div>
   <div id="mv-toast"></div>
   <div id="mv-watermark">
-    <a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener">abrinsmead/skills/mermaid-viewer v1.0</a>
+    <a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener">abrinsmead/skills/mermaid-viewer v1.1</a>
     <span class="wm-sep">·</span>
     <span class="wm-link" id="mv-install" title="Copy install command">install</span>
     <span class="wm-sep">·</span>
@@ -356,6 +356,14 @@
   $("mv-title").textContent = TITLE;
   $("mv-src").textContent = DIAGRAM;
   document.title = TITLE || document.title;
+
+  // Sandboxed embeds (e.g. Claude artifacts) block file downloads, so
+  // exports fall back to the clipboard there
+  const EMBEDDED = window.self !== window.top;
+  if (EMBEDDED) {
+    $("mv-png").dataset.tip = "Copy PNG";
+    $("mv-svg").dataset.tip = "Copy SVG";
+  }
 
   // ---- Theme -------------------------------------------------------------
   const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -608,9 +616,18 @@
       img.onerror = () => showToast("PNG export failed");
       img.onload = () => {
         ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => {
-          if (blob) download(blob, slug() + ".png");
-          else showToast("PNG export failed");
+        canvas.toBlob(async (blob) => {
+          if (!blob) { showToast("PNG export failed"); return; }
+          if (EMBEDDED) {
+            try {
+              await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+              showToast("PNG copied to clipboard");
+            } catch (err) {
+              showToast("PNG copy failed");
+            }
+          } else {
+            download(blob, slug() + ".png");
+          }
         }, "image/png");
       };
       img.src = svgUrl;
@@ -626,7 +643,11 @@
       const { clone } = await renderForExport(true);
       clone.style.backgroundColor = dark ? "#262626" : "#f5f5f5";
       const svgData = new XMLSerializer().serializeToString(clone);
-      download(new Blob([svgData], { type: "image/svg+xml;charset=utf-8" }), slug() + ".svg");
+      if (EMBEDDED) {
+        copyText(svgData, "SVG copied to clipboard");
+      } else {
+        download(new Blob([svgData], { type: "image/svg+xml;charset=utf-8" }), slug() + ".svg");
+      }
     } catch (err) {
       showToast("SVG export failed: " + err.message);
     } finally {
