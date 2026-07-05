@@ -85,7 +85,9 @@ Open the printed path in the default browser: `open <path>` on macOS, `xdg-open 
 
 ## 4. Artifact mode
 
-When the diagram should be a Claude artifact instead of (or in addition to) a local browser tab, build with `--artifact`. The emitted `<slug>.artifact.html` is body-content-only (no DOCTYPE/head/body — the artifact host supplies its skeleton) and makes zero network requests, satisfying the artifact CSP. Pass the file to the Artifact tool by path; never pull its contents into context.
+The DEFAULT output is the local HTML file opened in the browser (step 3). Build with `--artifact` ONLY when (a) the user explicitly asks for an artifact or a shareable link, or (b) there is no local browser to open (headless or remote session) — in that case say why you chose an artifact. Do not ask the user which mode they want; use the default.
+
+The emitted `<slug>.artifact.html` is body-content-only (no DOCTYPE/head/body — the artifact host supplies its skeleton) and makes zero network requests, satisfying the artifact CSP. Pass the file to the Artifact tool by path; never pull its contents into context.
 
 ## 5. Iterate
 
