@@ -47,6 +47,8 @@ The agent writes Mermaid source to `.diagrams/<name>.mmd` in your project, build
 
 In Claude Code, ask for the diagram "as an artifact": the skill builds with the `--artifact` flag and Claude publishes the result as a hosted artifact with a shareable URL. The artifact variant is body-only HTML with no external requests, as required by the artifact sandbox's CSP.
 
+Inside an artifact, the browser sandbox blocks file downloads, so the PNG and SVG buttons copy to the clipboard instead: PNG as an image you can paste anywhere (on macOS, Preview → File → New from Clipboard saves it as a file), SVG as markup you can paste into a `.svg` file. Diagrams opened as local files download normally.
+
 ## Diagram types
 
 Bundles Mermaid 11.16.0: flowcharts, swimlanes (`swimlane-beta`), sequence diagrams, state machines, ERDs, mindmaps, sankey, gantt, class, and timeline diagrams, among others. The SKILL.md includes type-selection guidance for the agent and a 16-color palette that stays readable in both themes.
