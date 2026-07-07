@@ -1922,7 +1922,15 @@
         const { svg } = await mermaid.render(uniqueId("rv-" + node.id), node.content);
         body.innerHTML = svg;
         const svgEl = body.querySelector("svg");
-        if (svgEl) trimSvgWhitespace(svgEl);
+        if (svgEl) {
+          trimSvgWhitespace(svgEl);
+          // Grow the card to the diagram's natural width (12px body padding
+          // ×2 + 1px border ×2) so the SVG never overflows the node
+          const svgW = parseFloat(svgEl.getAttribute("width")) || 0;
+          const cardEl = nodeEls[node.id];
+          const needed = Math.ceil(svgW + 26);
+          if (needed > cardEl.offsetWidth) cardEl.style.width = needed + "px";
+        }
       } catch (err) {
         const msg = (err && err.message) ? err.message : String(err);
         const strip = document.createElement("div");
