@@ -1,8 +1,6 @@
 # visual-code-reviewer
 
-An [agent skill](https://agentskills.io) that turns a PR, branch, or diff into an interactive review canvas: draggable cards — per-file diffs, mermaid diagrams, explainer notes, code snippets, screenshots, and P0/P1/P2 warnings — connected by labeled edges on a pan/zoom surface. Each generated file is fully self-contained — nothing to run or host, no network requests, works offline.
-
-Forked from [mermaid-viewer](../mermaid-viewer/): same viewer shell and build pipeline, but the single diagram is replaced by a graph of heterogeneous nodes the agent composes from its analysis of the change.
+An [agent skill](https://agentskills.io) that reviews **diffs and explains existing code** on an interactive canvas. Point it at a PR, branch, or working diff and it composes a visual review — changesets, diff slices, diagrams, notes, screenshots, and P0/P1/P2 warnings connected by labeled edges — or point it at existing code for a guided tour with line-numbered source, architecture diagrams, and gotcha/tip callouts. Each generated file is fully self-contained — nothing to run or host, no network requests, works offline.
 
 ![Review canvas rendered by visual-code-reviewer](../docs/screenshot-visual-code-reviewer.png)
 
