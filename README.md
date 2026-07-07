@@ -21,6 +21,7 @@ or pick a specific skill:
 
 ```
 npx skills add abrinsmead/skills/mermaid-viewer
+npx skills add abrinsmead/skills/visual-code-reviewer
 ```
 
 ## License
