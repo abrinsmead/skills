@@ -59,7 +59,11 @@ try {
 }
 
 // --- Validate -------------------------------------------------------------
-const NODE_TYPES = ["mermaid", "diff", "markdown", "code", "warning", "shape", "image"];
+const NODE_TYPES = ["mermaid", "diff", "excerpt", "changeset", "files", "markdown", "code", "warning", "callout", "shape", "image"];
+const CHANGESET_KINDS = ["behavioral", "mechanical", "generated", "test", "docs", "config"];
+const RISKS = ["high", "medium", "low"];
+const TONES = ["info", "tip", "gotcha"];
+const MODES = ["review", "explain"];
 const SEVERITIES = ["P0", "P1", "P2"];
 const SHAPES = ["start", "end", "process", "decision", "io"];
 const FILE_STATUSES = ["added", "modified", "deleted", "renamed"];
@@ -77,6 +81,9 @@ if (manifest.title !== undefined && typeof manifest.title !== "string") {
 }
 if (manifest.url !== undefined && !/^https?:\/\//.test(String(manifest.url))) {
   errors.push("`url` must start with http:// or https://");
+}
+if (manifest.mode !== undefined && !MODES.includes(manifest.mode)) {
+  errors.push(`\`mode\` must be one of ${MODES.join(", ")}`);
 }
 if (!Array.isArray(manifest.nodes) || manifest.nodes.length === 0) {
   fail("Manifest needs a non-empty `nodes` array");
@@ -98,9 +105,68 @@ manifest.nodes.forEach((n, i) => {
     errors.push(`${label}: unknown type "${n.type}" (expected ${NODE_TYPES.join(", ")})`);
     return; // type-specific checks would be noise
   }
-  const needsContent = ["mermaid", "diff", "markdown", "code", "warning"];
+  const needsContent = ["mermaid", "diff", "excerpt", "markdown", "code", "warning", "callout"];
   if (needsContent.includes(n.type) && typeof n.content !== "string") {
     errors.push(`${label}: type "${n.type}" requires a string \`content\``);
+  }
+  if (n.note !== undefined && typeof n.note !== "string") {
+    errors.push(`${label}: \`note\` must be a string (markdown)`);
+  }
+  if (n.risk !== undefined && !RISKS.includes(n.risk)) {
+    errors.push(`${label}: \`risk\` must be one of ${RISKS.join(", ")}`);
+  }
+  if (n.group !== undefined && typeof n.group !== "string") {
+    errors.push(`${label}: \`group\` must be a string`);
+  }
+  if (n.line !== undefined && typeof n.line !== "number") {
+    errors.push(`${label}: \`line\` must be a number`);
+  }
+  if (n.type === "callout" && !TONES.includes(n.tone)) {
+    errors.push(`${label}: callout requires \`tone\` of ${TONES.join("/")}`);
+  }
+  if (n.type === "changeset") {
+    if (n.kind !== undefined && !CHANGESET_KINDS.includes(n.kind)) {
+      errors.push(`${label}: \`kind\` must be one of ${CHANGESET_KINDS.join(", ")}`);
+    }
+    if (typeof n.note !== "string" && !Array.isArray(n.slices)) {
+      errors.push(`${label}: changeset needs a \`note\`, \`slices\`, or both`);
+    }
+    if (n.slices !== undefined) {
+      if (!Array.isArray(n.slices)) {
+        errors.push(`${label}: \`slices\` must be an array`);
+      } else {
+        n.slices.forEach((s, j) => {
+          const swhere = `${label}.slices[${j}]`;
+          if (s === null || typeof s !== "object") { errors.push(`${swhere} must be an object`); return; }
+          if (typeof s.content !== "string") errors.push(`${swhere}: requires a string \`content\` (diff slice)`);
+          if (s.file !== undefined && typeof s.file !== "string") errors.push(`${swhere}: \`file\` must be a string`);
+        });
+      }
+    }
+  }
+  if (n.type === "files") {
+    if (!Array.isArray(n.files) || n.files.length === 0) {
+      errors.push(`${label}: type "files" requires a non-empty \`files\` array`);
+    } else {
+      n.files.forEach((f, j) => {
+        const fwhere = `${label}.files[${j}]`;
+        if (f === null || typeof f !== "object") { errors.push(`${fwhere} must be an object`); return; }
+        if (typeof f.file !== "string" || !f.file.trim()) {
+          errors.push(`${fwhere}: requires a string \`file\``);
+        }
+        if (typeof f.content !== "string") {
+          errors.push(`${fwhere}: requires a string \`content\` (the file's unified diff)`);
+        }
+        if (f.status !== undefined && !FILE_STATUSES.includes(f.status)) {
+          errors.push(`${fwhere}: \`status\` must be one of ${FILE_STATUSES.join(", ")}`);
+        }
+        for (const k of ["additions", "deletions", "lines"]) {
+          if (f[k] !== undefined && typeof f[k] !== "number") {
+            errors.push(`${fwhere}: \`${k}\` must be a number`);
+          }
+        }
+      });
+    }
   }
   if (n.type === "warning" && !SEVERITIES.includes(n.severity)) {
     errors.push(`${label}: warning requires \`severity\` of ${SEVERITIES.join("/")}`);
@@ -112,10 +178,12 @@ manifest.nodes.forEach((n, i) => {
       errors.push(`${label}: unknown color "${n.color}" (palette: ${PALETTE.join(", ")})`);
     }
   }
-  if (n.type === "diff") {
+  if (n.type === "diff" || n.type === "excerpt") {
     if (n.status !== undefined && !FILE_STATUSES.includes(n.status)) {
       errors.push(`${label}: \`status\` must be one of ${FILE_STATUSES.join(", ")}`);
     }
+  }
+  if (n.type === "diff") {
     if (n.minimized !== undefined && typeof n.minimized !== "boolean") {
       errors.push(`${label}: \`minimized\` must be a boolean`);
     }

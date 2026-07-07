@@ -165,19 +165,29 @@
   .rv-node.dragging .rv-head, .rv-shape.dragging, .rv-node.dragging.rv-chromeless { cursor: grabbing; }
   .rv-head svg.rv-icon { width: 14px; height: 14px; flex: none; color: var(--panel-dim); }
   .rv-head .rv-title {
+    flex: 1 1 auto;
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* The file ref yields to the title: it shrinks 4x faster and ellipsizes
+     from the left so the filename:line tail stays visible */
   .rv-head .rv-file {
+    flex: 0 4 auto;
+    min-width: 0;
     margin-left: auto;
     padding-left: 12px;
     color: var(--panel-dim);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: right;
   }
+  .rv-head .rv-file bdi { unicode-bidi: isolate; direction: ltr; }
   .rv-head .rv-expand {
     flex: none;
     display: flex;
@@ -203,13 +213,307 @@
   /* Per-type body sizing */
   .rv-node[data-type="diff"]     { width: 720px; }
   .rv-node[data-type="code"]     { width: 560px; }
+  .rv-node[data-type="excerpt"]  { width: 560px; }
+  .rv-node[data-type="files"]    { width: 520px; }
   .rv-node[data-type="markdown"] { width: 440px; }
   .rv-node[data-type="warning"]  { width: 380px; }
+  .rv-node[data-type="callout"]  { width: 380px; }
   .rv-node[data-type="image"]    { width: 480px; }
   .rv-node[data-type="diff"] .rv-body, .rv-node[data-type="code"] .rv-body { max-height: 480px; }
+  .rv-node[data-type="excerpt"] .rv-body { max-height: 360px; }
   .rv-node[data-type="markdown"] .rv-body, .rv-node[data-type="warning"] .rv-body,
-  .rv-node[data-type="image"] .rv-body { max-height: 600px; }
+  .rv-node[data-type="callout"] .rv-body, .rv-node[data-type="image"] .rv-body,
+  .rv-node[data-type="files"] .rv-body { max-height: 600px; }
   .rv-node[data-type="mermaid"] .rv-body { padding: 12px; overflow: visible; }
+
+  /* Excerpt cards: optional markdown note above the code slice */
+  .rv-excerpt-note { border-bottom: 1px solid var(--card-border); }
+
+  /* Files tray: one accordion row per changed file */
+  .rv-node[data-type="files"].rv-open { width: 760px; }
+  .rv-ftray-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-top: 1px solid var(--card-border);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .rv-body > .rv-ftray-row:first-child { border-top: none; }
+  .rv-ftray-row:hover { background: var(--head-bg); }
+  .rv-ftray-row .rv-path {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rv-ftray-row .rv-stats { margin-left: auto; }
+  .rv-ftray-row svg.rv-chev {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    color: var(--icon);
+    transform: rotate(-90deg);
+    transition: transform 0.15s;
+  }
+  .rv-ftray-row.open svg.rv-chev { transform: none; }
+  .rv-ftray-diff {
+    border-top: 1px solid var(--card-border);
+    overflow: auto;
+    max-height: 420px;
+  }
+  .rv-ftray-diff[hidden] { display: none; }
+
+  /* Changeset cards: the semantic unit of review. Risk sets the accent. */
+  .rv-node[data-type="changeset"] { width: 620px; border-left: 4px solid var(--risk-color, var(--card-border)); }
+  .rv-node[data-type="changeset"] .rv-body { max-height: 520px; }
+  .rv-node[data-risk="low"] { opacity: 0.92; }
+  .rv-kind {
+    flex: none;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff;
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  [data-theme="dark"] .rv-kind { color: #171717; }
+  .rv-slice-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--head-bg);
+    border-top: 1px solid var(--card-border);
+    border-bottom: 1px solid var(--card-border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--panel-dim);
+  }
+  .rv-md + .rv-slice-head, .rv-diff + .rv-slice-head { margin-top: 0; }
+
+  /* Selection ring: rail and canvas share one selection */
+  .rv-node.selected, .rv-shape.selected {
+    outline: 2px solid var(--icon-hover-fg);
+    outline-offset: 2px;
+  }
+
+  /* Word-level intra-line diff emphasis */
+  .rv-diff .row-del .dw { background: rgba(239, 68, 68, 0.32); border-radius: 2px; }
+  .rv-diff .row-add .dw { background: rgba(34, 197, 94, 0.32); border-radius: 2px; }
+
+  /* Minimal syntax tokens (theme-aware) */
+  :root { --tk-kw: #364fc7; --tk-str: #2f9e44; --tk-num: #7048e8; --tk-com: #868e96; }
+  [data-theme="dark"] { --tk-kw: #74c0fc; --tk-str: #8ce99a; --tk-num: #d0bfff; --tk-com: #868e96; }
+  .tk-kw { color: var(--tk-kw); }
+  .tk-str { color: var(--tk-str); }
+  .tk-num { color: var(--tk-num); }
+  .tk-com { color: var(--tk-com); font-style: italic; }
+
+  /* Narrative rail: the review in reading order, linked to the map */
+  #rv-rail {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 280px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--panel-border);
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+  }
+  #rv-rail[hidden] { display: none; }
+  /* Unpinned hover-open: overlays the canvas instead of docking */
+  #rv-rail.overlay { box-shadow: 4px 0 24px rgba(0, 0, 0, 0.18); }
+  #rv-hotzone {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 8px;
+    z-index: 44;
+  }
+  #rv-rail-head {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  #rv-rail-head .rv-rail-title { font-weight: 500; margin-left: 4px; }
+  #rv-pin { margin-left: auto; }
+  #rv-pin.active .icon-pin-off { display: none; }
+  #rv-pin:not(.active) .icon-pin { display: none; }
+  #rv-menu-btn {
+    position: absolute;
+    top: 16px; left: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--float-bg);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1px solid var(--float-border);
+    border-radius: 8px;
+    color: var(--icon);
+    cursor: pointer;
+    padding: 0;
+    z-index: 44;
+  }
+  #rv-menu-btn:hover { background: var(--icon-hover-bg); color: var(--icon-hover-fg); }
+  #rv-menu-btn svg { width: 16px; height: 16px; }
+  #rv-menu-btn[hidden] { display: none; }
+  .rv-rail-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    color: var(--icon);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .rv-rail-btn:hover { background: var(--icon-hover-bg); color: var(--icon-hover-fg); }
+  .rv-rail-btn.active { color: var(--icon-hover-fg); background: var(--icon-hover-bg); }
+  .rv-rail-btn svg { width: 14px; height: 14px; }
+  #rv-rail-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .rv-tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 0 7px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--panel-dim);
+    border-bottom: 2px solid transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .rv-tab:hover { color: var(--panel-fg); }
+  .rv-tab.active {
+    color: var(--icon-hover-fg);
+    border-bottom-color: var(--icon-hover-fg);
+    font-weight: 500;
+  }
+  #rv-files-list { overflow: auto; flex: 1; padding: 6px; }
+  #rv-files-list[hidden] { display: none; }
+  #rv-files-list .ri-path {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    direction: rtl;
+    text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+  }
+  /* The app/version/actions bar docks into the explorer while it's open:
+     name + dimmed version on one line, actions centered underneath. The
+     "hide" action only applies to the floating pill, so it's dropped here. */
+  #mv-watermark .wm-line { display: flex; align-items: center; gap: 5px; }
+  #mv-watermark .wm-ver { opacity: 0.55; }
+  #rv-rail #mv-watermark {
+    position: static;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    border-radius: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-top: 1px solid var(--panel-border);
+    padding: 9px 14px;
+    flex: none;
+  }
+  #rv-rail #mv-watermark a { color: var(--panel-fg); }
+  #rv-rail #mv-watermark .wm-actions { font-size: 10px; }
+  #rv-rail #mv-watermark #mv-hide, #rv-rail #mv-watermark .wm-hide-sep { display: none; }
+  #rv-attention {
+    padding: 8px 14px 10px;
+    border-bottom: 1px solid var(--panel-border);
+    font-size: 11px;
+    color: var(--panel-dim);
+  }
+  #rv-attention .att-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--pill-bg);
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  #rv-attention .att-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--icon-hover-fg);
+    transition: width 0.2s;
+  }
+  #rv-rail-list { overflow: auto; flex: 1; padding: 6px; }
+  .rv-rail-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 8px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--panel-dim);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .rv-rail-group .rg-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .rv-rail-group .rg-count { font-weight: 400; opacity: 0.8; }
+  .rv-rail-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--panel-fg);
+  }
+  .rv-rail-item:hover { background: var(--icon-hover-bg); }
+  .rv-rail-item.active { background: var(--icon-hover-bg); color: var(--icon-hover-fg); }
+  .rv-rail-item > svg.ri-icon { width: 13px; height: 13px; flex: none; color: var(--panel-dim); }
+  .rv-rail-item .ri-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rv-rail-item .ri-badge {
+    flex: none;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 0 4px;
+    border-radius: 3px;
+    color: #fff;
+  }
+  [data-theme="dark"] .rv-rail-item .ri-badge { color: #171717; }
+  .rv-rail-item svg.ri-check {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    color: var(--status-a);
+    visibility: hidden;
+    cursor: pointer;
+  }
+  .rv-rail-item.read svg.ri-check { visibility: visible; }
+  .rv-rail-item svg.ri-check:hover { color: var(--sev0); }
 
   /* Diff body */
   .rv-diff {
@@ -281,8 +585,10 @@
   .rv-md pre code { background: none; padding: 0; }
   .rv-md a { color: var(--link); }
 
-  /* Warning card */
-  .rv-node[data-type="warning"] { border-left: 4px solid var(--sev-color); }
+  /* Warning + callout cards share the severity/tone accent */
+  .rv-node[data-type="warning"], .rv-node[data-type="callout"] { border-left: 4px solid var(--sev-color); }
+  /* Plain source (explain mode): 2-column line-number grid, no diff markers */
+  .rv-src { grid-template-columns: auto 1fr; }
   .rv-sev {
     flex: none;
     font-size: 10px;
@@ -316,10 +622,6 @@
   .rv-node.rv-min { opacity: 0.85; width: auto !important; }
   .rv-node.rv-min > .rv-head, .rv-node.rv-min > .rv-body { display: none; }
   .rv-node:not(.rv-min) > .rv-filerow { display: none; }
-  /* Focus mode: authored-minimized nodes toggle off entirely (H / eye button) */
-  #mv-app.hide-min .rv-node[data-min="1"] { display: none; }
-  #mv-app:not(.hide-min) .icon-eye { display: none; }
-  #mv-app.hide-min .icon-eye-off { display: none; }
   .rv-node.rv-min .rv-filerow { padding: 4px 10px; gap: 6px; }
   .rv-node.rv-min .rv-path { font-size: 11px; font-weight: 400; }
   .rv-node.rv-min .rv-status { font-size: 9px; padding: 0 4px; }
@@ -449,9 +751,7 @@
     padding: 4px;
     z-index: 50;
   }
-  #mv-app.src-open #rv-minimap,
-  #mv-app.src-open #mv-controls { right: calc(min(480px, 90vw) + 16px); }
-  #mv-controls button, #mv-src-head button {
+  #mv-controls button {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -464,11 +764,11 @@
     cursor: pointer;
     padding: 0;
   }
-  #mv-controls button:hover, #mv-src-head button:hover {
+  #mv-controls button:hover {
     background: var(--icon-hover-bg);
     color: var(--icon-hover-fg);
   }
-  #mv-controls svg, #mv-src-head svg { width: 16px; height: 16px; }
+  #mv-controls svg { width: 16px; height: 16px; }
   /* CSS tooltips: shown to the left of the buttons after a short hover delay */
   [data-tip] { position: relative; }
   [data-tip]::after {
@@ -506,45 +806,30 @@
   [data-theme="dark"] .icon-moon { display: none; }
   :root:not([data-theme="dark"]) .icon-sun { display: none; }
 
-  /* Source panel */
-  #mv-source-panel {
+  /* Hover copy button: upper-right of note-like card content */
+  .rv-copy {
     position: absolute;
-    top: 0; right: 0; bottom: 0;
-    width: min(480px, 90vw);
-    background: var(--panel-bg);
-    border-left: 1px solid var(--panel-border);
-    color: var(--panel-fg);
-    z-index: 45;
-    display: flex;
-    flex-direction: column;
-  }
-  #mv-source-panel[hidden] { display: none; }
-  #mv-src-head {
-    position: relative;
+    top: 40px;
+    right: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 16px;
-    border-bottom: 1px solid var(--panel-border);
-    font-weight: 500;
+    width: 24px;
+    height: 24px;
+    background: var(--float-bg);
+    border: 1px solid var(--float-border);
+    border-radius: 5px;
+    color: var(--icon);
+    cursor: pointer;
+    padding: 0;
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 2;
   }
-  #mv-src-actions {
-    position: absolute;
-    right: 8px;
-    display: flex;
-    gap: 2px;
-  }
-  #mv-src {
-    margin: 0;
-    padding: 16px;
-    overflow: auto;
-    flex: 1;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 12px;
-    line-height: 1.5;
-    white-space: pre;
-    color: var(--panel-fg);
-  }
+  .rv-node:hover .rv-copy { opacity: 1; }
+  .rv-copy:hover { background: var(--icon-hover-bg); color: var(--icon-hover-fg); }
+  .rv-copy svg { width: 13px; height: 13px; }
+  .rv-node.collapsed .rv-copy, .rv-node.rv-min .rv-copy { display: none; }
 
   #mv-error {
     position: absolute;
@@ -681,11 +966,29 @@
   <symbol id="lu-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
   </symbol>
-  <symbol id="lu-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" />
+  <symbol id="lu-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="8" x2="21" y1="6" y2="6" /><line x1="8" x2="21" y1="12" y2="12" /><line x1="8" x2="21" y1="18" y2="18" /><line x1="3" x2="3.01" y1="6" y2="6" /><line x1="3" x2="3.01" y1="12" y2="12" /><line x1="3" x2="3.01" y1="18" y2="18" />
   </symbol>
-  <symbol id="lu-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" /><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" /><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" /><path d="m2 2 20 20" />
+  <symbol id="lu-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 6 9 17l-5-5" />
+  </symbol>
+  <symbol id="lu-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z" />
+  </symbol>
+  <symbol id="lu-pin-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 17v5" /><path d="M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89" /><path d="m2 2 20 20" /><path d="M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11" />
+  </symbol>
+  <symbol id="lu-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" />
+  </symbol>
+  <symbol id="lu-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
+  </symbol>
+  <symbol id="lu-lightbulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /><path d="M9 18h6" /><path d="M10 22h4" />
+  </symbol>
+  <symbol id="lu-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" /><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
   </symbol>
 </svg>
 
@@ -696,40 +999,44 @@
     <button id="mv-zoom-in" data-tip="Zoom in (+)" aria-label="Zoom in"><svg><use href="#lu-zoom-in"/></svg></button>
     <button id="mv-zoom-out" data-tip="Zoom out (−)" aria-label="Zoom out"><svg><use href="#lu-zoom-out"/></svg></button>
     <button id="mv-fit" data-tip="Fit to screen (F)" aria-label="Fit to screen"><svg><use href="#lu-maximize-2"/></svg></button>
-    <button id="mv-relayout" data-tip="Reset layout (R)" aria-label="Reset layout"><svg><use href="#lu-layout-grid"/></svg></button>
-    <button id="mv-toggle-min" data-tip="Hide minimized (H)" aria-label="Hide minimized">
-      <svg class="icon-eye-off"><use href="#lu-eye-off"/></svg>
-      <svg class="icon-eye"><use href="#lu-eye"/></svg>
-    </button>
+    <button id="mv-relayout" data-tip="Cycle layout (R) — next: Layered ↓" aria-label="Cycle layout"><svg><use href="#lu-layout-grid"/></svg></button>
+    <button id="mv-rail-toggle" data-tip="Toggle review rail (N)" aria-label="Toggle review rail"><svg><use href="#lu-list"/></svg></button>
     <div class="sep"></div>
     <button id="mv-theme" data-tip="Toggle theme (D)" aria-label="Toggle theme">
       <svg class="icon-sun"><use href="#lu-sun"/></svg>
       <svg class="icon-moon"><use href="#lu-moon"/></svg>
     </button>
-    <div class="sep"></div>
-    <button id="mv-src-toggle" data-tip="View manifest (S)" aria-label="View manifest"><svg><use href="#lu-code"/></svg></button>
   </div>
-  <div id="mv-source-panel" hidden>
-    <div id="mv-src-head">
-      <span>Review Manifest</span>
-      <div id="mv-src-actions">
-        <button id="mv-copy" data-tip="Copy manifest" aria-label="Copy manifest"><svg><use href="#lu-copy"/></svg></button>
-        <button id="mv-src-close" data-tip="Close (S)" aria-label="Close"><svg><use href="#lu-x"/></svg></button>
-      </div>
+  <div id="rv-rail">
+    <div id="rv-rail-head">
+      <span class="rv-rail-title">Explorer</span>
+      <button id="rv-pin" class="rv-rail-btn active" title="Unpin explorer">
+        <svg class="icon-pin"><use href="#lu-pin"/></svg>
+        <svg class="icon-pin-off"><use href="#lu-pin-off"/></svg>
+      </button>
     </div>
-    <pre id="mv-src"></pre>
+    <div id="rv-rail-tabs">
+      <div class="rv-tab active" data-tab="review">Review</div>
+      <div class="rv-tab" data-tab="files">Files</div>
+    </div>
+    <div id="rv-attention"></div>
+    <div id="rv-rail-list"></div>
+    <div id="rv-files-list" hidden></div>
   </div>
+  <div id="rv-hotzone"></div>
+  <button id="rv-menu-btn" title="Open explorer (N)" hidden><svg><use href="#lu-menu"/></svg></button>
   <div id="mv-error" hidden></div>
   <div id="mv-toast"></div>
   <div id="rv-minimap" title="Minimap — click or drag to pan (M to hide)"><canvas id="rv-minimap-canvas"></canvas></div>
   <div id="mv-watermark">
-    <a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener">abrinsmead/skills/visual-code-reviewer v1.4</a>
-    <span class="wm-sep">·</span>
-    <span class="wm-link" id="mv-install" title="Copy install command">install</span>
-    <span class="wm-sep">·</span>
-    <span class="wm-link" id="mv-update" title="Copy update command">update</span>
-    <span class="wm-sep">·</span>
-    <span class="wm-link" id="mv-hide" title="Hide until reload">hide</span>
+    <div class="wm-line"><a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener" title="abrinsmead/skills">visual-code-reviewer</a><span class="wm-ver">v2.1</span></div>
+    <div class="wm-line wm-actions">
+      <span class="wm-link" id="mv-install" title="Copy install command">install</span>
+      <span class="wm-sep">·</span>
+      <span class="wm-link" id="mv-update" title="Copy update command">update</span>
+      <span class="wm-sep wm-hide-sep">·</span>
+      <span class="wm-link" id="mv-hide" title="Hide until reload">hide</span>
+    </div>
   </div>
 </div>
 
@@ -769,20 +1076,22 @@
   } else {
     titleEl.textContent = TITLE;
   }
-  // Repo subtitle, derived from a GitHub PR url: "owner/repo #N"
+  // Repo subtitle: "owner/repo #N" for PR urls, "owner/repo" for repo urls
   const prMatch = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(MANIFEST.url || "");
-  if (prMatch) {
+  const repoMatch = prMatch ? null
+    : /^https:\/\/github\.com\/([^/]+)\/([^/]+)$/.exec((MANIFEST.url || "").replace(/\/+$/, ""));
+  if (prMatch || repoMatch) {
+    const m = prMatch || repoMatch;
     const sub = document.createElement("div");
     sub.className = "mv-subtitle";
     const a = document.createElement("a");
     a.href = MANIFEST.url;
     a.target = "_blank";
     a.rel = "noopener";
-    a.textContent = prMatch[1] + "/" + prMatch[2] + " #" + prMatch[3];
+    a.textContent = m[1] + "/" + m[2] + (prMatch ? " #" + prMatch[3] : "");
     sub.appendChild(a);
     titleEl.appendChild(sub);
   }
-  $("mv-src").textContent = JSON.stringify(MANIFEST, null, 2);
   document.title = TITLE || document.title;
 
   // Sandboxed embeds (e.g. Claude artifacts) block some clipboard paths;
@@ -818,11 +1127,40 @@
   const TYPE_ICON = {
     mermaid: "lu-workflow",
     diff: "lu-git-compare",
+    excerpt: "lu-git-compare",
+    changeset: "lu-layers",
+    files: "lu-file",
     markdown: "lu-text",
     code: "lu-file-code",
     warning: "lu-triangle-alert",
     image: "lu-image",
+    shape: "lu-workflow",
+    callout: "lu-info",
   };
+  const nodeIcon = (node) =>
+    node.type === "callout" ? (CALLOUT_ICON[node.tone] || "lu-info") : (TYPE_ICON[node.type] || "lu-file");
+  // Mode vocabulary: review = triage a diff; explain = tour existing code.
+  // Everything mode-dependent reads M.* — no scattered mode branches.
+  const MODES = {
+    review:  { tab: "Review", meterVerb: "reviewed", groups: "risk",  allTargets: false, sourceTray: false },
+    explain: { tab: "Tour",   meterVerb: "visited",  groups: "flat",  allTargets: true,  sourceTray: true },
+  };
+  const M = MODES[MANIFEST.mode] || MODES.review;
+
+  // Callout tones -> accent color var + icon
+  const TONE_VAR = { gotcha: "--sev1", tip: "--status-a", info: "--status-r" };
+  const CALLOUT_ICON = { gotcha: "lu-triangle-alert", tip: "lu-lightbulb", info: "lu-info" };
+
+  // Changeset kinds -> badge color (palette fills)
+  const KIND_COLOR = {
+    behavioral: "#845ef7",
+    mechanical: "#737373",
+    generated: "#a3a3a3",
+    test: "#51cf66",
+    docs: "#74c0fc",
+    config: "#ff922b",
+  };
+  const RISK_VAR = { high: "--sev0", medium: "--sev1", low: "--gutter-fg" };
 
   // ---- Theme -------------------------------------------------------------
   const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -866,6 +1204,91 @@
     return svg;
   }
 
+  // ---- Minimal syntax highlighting -----------------------------------------
+  // One permissive tokenizer for all languages: comments, strings, numbers,
+  // and a merged keyword set. Line-scoped (no cross-line comment state) —
+  // wrong occasionally, cheap always, and self-contained.
+  const KEYWORDS = new Set(("function,const,let,var,return,if,else,for,while,do,class,import,export,from,new," +
+    "async,await,try,catch,finally,throw,switch,case,break,continue,in,of,typeof,instanceof,this,super,extends," +
+    "static,get,set,yield,delete,void,null,undefined,true,false,def,self,None,True,False,elif,lambda,with,as," +
+    "pass,raise,not,and,or,is,global,nonlocal,assert,fn,pub,struct,impl,enum,match,mut,use,mod,crate,trait,where," +
+    "func,go,chan,defer,select,type,interface,package,map,range,public,private,protected,final,abstract,int,long," +
+    "float,double,bool,boolean,string,char,byte,short,unsigned,signed,sizeof,template,typename,namespace,using," +
+    "virtual,override,operator,select,insert,update,delete,where,join,group,order,by,having,limit").split(","));
+  const HL_RE = /(\/\/.*|\/\*[\s\S]*?(?:\*\/|$)|#.*)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(0x[0-9a-fA-F]+|\d+(?:\.\d+)?)\b|\b([A-Za-z_]\w*)\b/g;
+
+  function highlightInto(parent, text) {
+    HL_RE.lastIndex = 0;
+    let last = 0, m;
+    while ((m = HL_RE.exec(text))) {
+      if (m.index > last) parent.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const cls = m[1] ? "tk-com" : m[2] ? "tk-str" : m[3] ? "tk-num" : (KEYWORDS.has(m[4]) ? "tk-kw" : "");
+      if (cls) {
+        const s = document.createElement("span");
+        s.className = cls;
+        s.textContent = m[0];
+        parent.appendChild(s);
+      } else {
+        parent.appendChild(document.createTextNode(m[0]));
+      }
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+  }
+
+  // ---- Word-level intra-line diff -------------------------------------------
+  // For a paired removed/added line, LCS over word tokens marks just the
+  // tokens that changed. Bails (null) on huge lines or when almost nothing
+  // matches — whole-line coloring reads better than confetti.
+  function wordDiff(a, b) {
+    if (a === b || !a || !b) return null;
+    const ta = a.split(/(\W+)/).filter((t) => t !== "");
+    const tb = b.split(/(\W+)/).filter((t) => t !== "");
+    if (ta.length * tb.length > 20000) return null;
+    const n = ta.length, m = tb.length;
+    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i--)
+      for (let j = m - 1; j >= 0; j--)
+        dp[i][j] = ta[i] === tb[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    const aChanged = new Array(n).fill(true), bChanged = new Array(m).fill(true);
+    let i = 0, j = 0, matched = 0;
+    while (i < n && j < m) {
+      if (ta[i] === tb[j]) { aChanged[i] = false; bChanged[j] = false; matched += ta[i].length; i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
+      else j++;
+    }
+    if (matched < Math.max(a.length, b.length) * 0.3) return null;
+    const segs = (toks, changed) => {
+      const out = [];
+      toks.forEach((t, k) => {
+        if (out.length && out[out.length - 1][1] === changed[k]) out[out.length - 1][0] += t;
+        else out.push([t, changed[k]]);
+      });
+      return out;
+    };
+    return { a: segs(ta, aChanged), b: segs(tb, bChanged) };
+  }
+
+  // ---- Source renderer -------------------------------------------------------
+  // Plain code with a line-number gutter and syntax highlighting — explain
+  // mode shows code as it is, not as it changed.
+  function renderSource(text, startLine) {
+    const grid = document.createElement("div");
+    grid.className = "rv-diff rv-src";
+    let n = startLine || 1;
+    for (const line of String(text).replace(/\n$/, "").split("\n")) {
+      const ln = document.createElement("div");
+      ln.className = "ln";
+      ln.textContent = String(n++);
+      const code = document.createElement("div");
+      code.className = "code";
+      highlightInto(code, line);
+      grid.appendChild(ln);
+      grid.appendChild(code);
+    }
+    return grid;
+  }
+
   // ---- Diff renderer -------------------------------------------------------
   // Renders a unified diff as a 4-column grid: old line, new line, marker, code.
   // Long runs of unchanged context fold behind a "⋯ N unchanged lines" row
@@ -877,7 +1300,7 @@
     if (!lines.some((l) => l.startsWith("@@"))) {
       const pre = document.createElement("pre");
       pre.className = "rv-plain";
-      pre.textContent = text;
+      highlightInto(pre, String(text));
       return pre;
     }
     // Classify first so context runs can be folded before building DOM
@@ -906,6 +1329,22 @@
       }
     }
 
+    // Pair removed/added runs for word-level emphasis: k-th del line in a run
+    // pairs with the k-th add line that follows it
+    for (let s = 0; s < entries.length; s++) {
+      if (!(entries[s].kind === "row" && entries[s].cls === "row-del")) continue;
+      let de = s;
+      while (de < entries.length && entries[de].kind === "row" && entries[de].cls === "row-del") de++;
+      let ae = de;
+      while (ae < entries.length && entries[ae].kind === "row" && entries[ae].cls === "row-add") ae++;
+      const pairs = Math.min(de - s, ae - de);
+      for (let k = 0; k < pairs; k++) {
+        const w = wordDiff(entries[s + k].code, entries[de + k].code);
+        if (w) { entries[s + k].segs = w.a; entries[de + k].segs = w.b; }
+      }
+      s = ae - 1;
+    }
+
     const grid = document.createElement("div");
     grid.className = "rv-diff";
     const emit = (parent, e) => {
@@ -920,7 +1359,24 @@
       for (const [c, t] of [["ln", e.o], ["ln", e.n], ["mk", e.mark], ["code", e.code]]) {
         const d = document.createElement("div");
         d.className = c;
-        d.textContent = t;
+        if (c === "code") {
+          if (e.segs) {
+            for (const [text, changed] of e.segs) {
+              if (changed) {
+                const w = document.createElement("span");
+                w.className = "dw";
+                highlightInto(w, text);
+                d.appendChild(w);
+              } else {
+                highlightInto(d, text);
+              }
+            }
+          } else {
+            highlightInto(d, t);
+          }
+        } else {
+          d.textContent = t;
+        }
         if (e.cls) d.classList.add(e.cls);
         parent.appendChild(d);
       }
@@ -1027,6 +1483,9 @@
   // contain a "/") resolve to the PR Files tab, whose per-file fragment is
   // "diff-" + SHA-256 of the path. Hashing is async, so hrefs land post-boot.
   const GH_PR = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+/.exec(MANIFEST.url || "");
+  // A plain repo url (no /pull/) links file refs to blob pages instead
+  const GH_REPO = GH_PR ? null
+    : /^https:\/\/github\.com\/[^/]+\/[^/]+$/.exec((MANIFEST.url || "").replace(/\/+$/, ""));
 
   function applyHref(anchor, node) {
     if (typeof node.href === "string" && /^https?:\/\//.test(node.href)) {
@@ -1036,8 +1495,17 @@
   }
 
   async function linkifyFileRefs() {
+    const repoAnchors = document.querySelectorAll("a.rv-path[data-path], a.rv-file[data-path]");
+    if (GH_REPO) {
+      for (const a of repoAnchors) {
+        const path = a.dataset.path;
+        if (!path.includes("/")) continue;
+        a.href = GH_REPO[0] + "/blob/HEAD/" + path + (a.dataset.line ? "#L" + a.dataset.line : "");
+      }
+      return;
+    }
     if (!GH_PR || !window.crypto || !crypto.subtle) return;
-    const anchors = document.querySelectorAll("a.rv-path[data-path], a.rv-file[data-path]");
+    const anchors = repoAnchors;
     for (const a of anchors) {
       const path = a.dataset.path;
       if (!path.includes("/")) continue; // short labels can't be hashed to a file anchor
@@ -1052,14 +1520,28 @@
   function makeHead(node) {
     const head = document.createElement("div");
     head.className = "rv-head";
-    head.appendChild(icon(TYPE_ICON[node.type] || "lu-file", "rv-icon"));
+    head.appendChild(icon(nodeIcon(node), "rv-icon"));
     if (node.type === "warning") {
       const sev = document.createElement("span");
       sev.className = "rv-sev";
       sev.textContent = node.severity;
       head.appendChild(sev);
     }
-    if (node.type === "diff" && node.status) {
+    if (node.type === "callout") {
+      const tone = document.createElement("span");
+      tone.className = "rv-sev";
+      tone.textContent = node.tone.toUpperCase();
+      tone.style.background = "var(" + (TONE_VAR[node.tone] || "--sev2") + ")";
+      head.appendChild(tone);
+    }
+    if (node.type === "changeset" && node.kind) {
+      const k = document.createElement("span");
+      k.className = "rv-kind";
+      k.textContent = node.kind;
+      k.style.background = KIND_COLOR[node.kind] || "#737373";
+      head.appendChild(k);
+    }
+    if ((node.type === "diff" || node.type === "excerpt") && node.status) {
       const meta = STATUS_META[node.status];
       const badge = document.createElement("span");
       badge.className = "rv-status";
@@ -1070,6 +1552,7 @@
     const title = document.createElement("span");
     title.className = "rv-title";
     title.textContent = node.title || node.file || node.type;
+    title.title = title.textContent;
     head.appendChild(title);
     const fileRef = node.file && node.title ? node.file + (node.line ? ":" + node.line : "") : (node.line ? ":" + node.line : "");
     if (fileRef) {
@@ -1077,8 +1560,13 @@
       f.className = "rv-file";
       f.target = "_blank";
       f.rel = "noopener";
-      f.textContent = fileRef;
+      f.title = fileRef;
+      // <bdi> keeps "path:line" reading left-to-right inside the RTL-ellipsis trick
+      const b = document.createElement("bdi");
+      b.textContent = fileRef;
+      f.appendChild(b);
       if (node.file) f.dataset.path = node.file;
+      if (node.line) f.dataset.line = node.line;
       applyHref(f, node);
       head.appendChild(f);
     }
@@ -1102,6 +1590,7 @@
       const card = btn.closest(".rv-node");
       if (card.dataset.min === "1") {
         card.classList.add("rv-min");
+        computeLayout(); // card shrinks back to a chip: close the gap
       } else {
         card.classList.toggle("collapsed");
         btn.setAttribute("aria-label", card.classList.contains("collapsed") ? "Expand" : "Collapse");
@@ -1122,6 +1611,13 @@
 
     if (node.type === "warning") {
       el.style.setProperty("--sev-color", "var(" + SEV_VAR[node.severity] + ")");
+    }
+    if (node.type === "callout") {
+      el.style.setProperty("--sev-color", "var(" + (TONE_VAR[node.tone] || "--sev2") + ")");
+    }
+    if (node.risk) {
+      el.dataset.risk = node.risk;
+      el.style.setProperty("--risk-color", "var(" + (RISK_VAR[node.risk] || "--card-border") + ")");
     }
 
     // Minimized diffs start life as a compact file chip (status badge, path,
@@ -1159,8 +1655,15 @@
         if (!el.classList.contains("rv-min")) return;
         if (e.target.closest("a[href]")) return; // path link navigates instead
         el.classList.remove("rv-min");
+        // A chip becomes a 720px card: relayout so it never lands on a
+        // neighbor (manual drag positions reset — the map is auto-laid anyway)
+        computeLayout();
         redrawEdges();
       });
+    }
+
+    if (node.type === "files" && !node.title) {
+      node.title = "Changed files (" + (node.files || []).length + ")";
     }
 
     const head = makeHead(node);
@@ -1170,12 +1673,99 @@
     body.className = "rv-body";
     if (node.type === "diff") {
       body.appendChild(renderDiff(node.content));
+    } else if (node.type === "excerpt") {
+      if (node.note) {
+        const note = renderMarkdown(node.note);
+        note.classList.add("rv-excerpt-note");
+        body.appendChild(note);
+      }
+      // A slice with no @@ hunks but a line number is plain source, not a diff
+      const hasHunk = String(node.content).split("\n").some((l) => l.startsWith("@@"));
+      if (!hasHunk && node.line !== undefined) body.appendChild(renderSource(node.content, node.line));
+      else body.appendChild(renderDiff(node.content));
+    } else if (node.type === "changeset") {
+      if (node.note) body.appendChild(renderMarkdown(node.note));
+      for (const slice of node.slices || []) {
+        if (slice.file) {
+          const sh = document.createElement("div");
+          sh.className = "rv-slice-head";
+          const a = document.createElement("a");
+          a.className = "rv-path";
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.textContent = slice.file + (slice.line ? ":" + slice.line : "");
+          a.dataset.path = slice.file;
+          sh.appendChild(a);
+          body.appendChild(sh);
+        }
+        body.appendChild(renderDiff(slice.content));
+      }
+    } else if (node.type === "files") {
+      for (const entry of node.files || []) {
+        const row = document.createElement("div");
+        row.className = "rv-ftray-row";
+        row.title = "Click to expand diff";
+        row.appendChild(icon("lu-chevron-down", "rv-chev"));
+        const meta = STATUS_META[entry.status || "modified"];
+        const badge = document.createElement("span");
+        badge.className = "rv-status";
+        badge.textContent = meta[0];
+        badge.style.background = "var(" + meta[1] + ")";
+        row.appendChild(badge);
+        const path = document.createElement("a");
+        path.className = "rv-path";
+        path.target = "_blank";
+        path.rel = "noopener";
+        path.textContent = entry.file;
+        path.dataset.path = entry.file;
+        row.appendChild(path);
+        if (entry.lines !== undefined) {
+          const stats = document.createElement("span");
+          stats.className = "rv-stats";
+          stats.textContent = entry.lines + " lines";
+          row.appendChild(stats);
+        } else if (entry.additions !== undefined || entry.deletions !== undefined) {
+          const stats = document.createElement("span");
+          stats.className = "rv-stats";
+          stats.textContent = "+" + (entry.additions || 0) + " −" + (entry.deletions || 0);
+          row.appendChild(stats);
+        }
+        const diffWrap = document.createElement("div");
+        diffWrap.className = "rv-ftray-diff";
+        diffWrap.hidden = true;
+        // Diff DOM is built on first expand: a tray holds the whole PR, and
+        // rendering thousands of rows nobody may open would slow boot
+        let rendered = false;
+        row.addEventListener("click", (e) => {
+          if (e.target.closest("a[href]")) return; // path link navigates
+          if (!rendered) {
+            diffWrap.appendChild(M.sourceTray ? renderSource(entry.content, 1) : renderDiff(entry.content));
+            rendered = true;
+          }
+          diffWrap.hidden = !diffWrap.hidden;
+          row.classList.toggle("open", !diffWrap.hidden);
+          // Widen the tray to diff width while any row is open
+          el.classList.toggle("rv-open", !!body.querySelector(".rv-ftray-diff:not([hidden])"));
+          redrawEdges();
+        });
+        body.appendChild(row);
+        body.appendChild(diffWrap);
+      }
     } else if (node.type === "code") {
-      const pre = document.createElement("pre");
-      pre.className = "rv-plain";
-      pre.textContent = node.content;
-      body.appendChild(pre);
-    } else if (node.type === "markdown" || node.type === "warning") {
+      if (node.note) {
+        const note = renderMarkdown(node.note);
+        note.classList.add("rv-excerpt-note");
+        body.appendChild(note);
+      }
+      if (node.line !== undefined) {
+        body.appendChild(renderSource(node.content, node.line));
+      } else {
+        const pre = document.createElement("pre");
+        pre.className = "rv-plain";
+        highlightInto(pre, String(node.content));
+        body.appendChild(pre);
+      }
+    } else if (node.type === "markdown" || node.type === "warning" || node.type === "callout") {
       body.appendChild(renderMarkdown(node.content));
     } else if (node.type === "image") {
       const img = document.createElement("img");
@@ -1186,6 +1776,20 @@
     // mermaid bodies are filled by renderAllMermaid()
     el.appendChild(body);
 
+    // Hover copy on note-like cards: grabs the raw markdown content
+    if (node.type === "markdown" || node.type === "warning" || node.type === "callout") {
+      const cp = document.createElement("button");
+      cp.className = "rv-copy";
+      cp.title = "Copy content";
+      cp.appendChild(icon("lu-copy"));
+      cp.addEventListener("pointerdown", (e) => e.stopPropagation()); // no drag
+      cp.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyText(String(node.content), "Copied");
+      });
+      el.appendChild(cp);
+    }
+
     // Wheel scrolls the body when it has overflow, otherwise falls through to
     // canvas zoom
     body.addEventListener("wheel", (e) => {
@@ -1194,8 +1798,16 @@
       }
     }, { passive: true });
 
-    // Text selection is disabled canvas-wide, so the whole card is a drag handle
-    makeDraggable(el, node.id, el);
+    // Text selection is disabled canvas-wide, so the whole card is a drag
+    // handle. A tap on the header bar (not its links/chevron) toggles collapse.
+    makeDraggable(el, node.id, el, (target) => {
+      if (target.closest("a[href], button")) return;
+      const headEl = target.closest(".rv-head");
+      if (headEl && headEl.parentElement === el) {
+        const b = headEl.querySelector(".rv-expand");
+        if (b) b.click();
+      }
+    });
     return el;
   }
 
@@ -1327,26 +1939,51 @@
   }
 
   // ---- Auto-layout --------------------------------------------------------------
-  // Layered left-to-right by edge topology (Sugiyama-style): DFS cycle-break
-  // (back-edges are drawn but ignored for layout), longest-path layering,
-  // alternating barycenter sweeps for crossing reduction, then a neighbor-pull
-  // vertical pass so nodes line up with what they connect to. Connected
-  // components lay out independently and stack vertically; edgeless nodes go
-  // in a trailing grid.
+  // Four algorithms, cycled by the layout button / R. The layered ones are
+  // Sugiyama-style by edge topology: DFS cycle-break (back-edges are drawn but
+  // ignored for layout), longest-path layering, alternating barycenter sweeps
+  // for crossing reduction, then a neighbor-pull cross-axis pass so nodes line
+  // up with what they connect to. Connected components lay out independently
+  // and stack; edgeless nodes go in a trailing grid.
   const H_GAP = 120, V_GAP = 48, COMP_GAP = 100;
 
-  function computeLayout() {
-    // Nodes hidden by the minimized-files toggle keep their positions and are
-    // laid out again next time they're visible
+  // Nodes hidden by the minimized-files toggle keep their positions and are
+  // laid out again next time they're visible
+  function measureVisible() {
     const ids = nodes.map((n) => n.id).filter((id) => nodeEls[id].offsetWidth > 0);
     const size = {};
     ids.forEach((id) => {
       const el = nodeEls[id];
       size[id] = { w: el.offsetWidth, h: el.offsetHeight };
     });
-
     const valid = new Set(ids);
     const links = edges.filter((e) => e.from !== e.to && valid.has(e.from) && valid.has(e.to));
+    return { ids, size, links };
+  }
+
+  // The layout button / R toggles between the two layered directions; each
+  // writes `pos` for every visible node. Layered → is the default: the canvas
+  // reads left-to-right from entry points.
+  const LAYOUTS = [
+    { name: "Layered →", fn: () => layoutLayered(true) },
+    { name: "Layered ↓", fn: () => layoutLayered(false) },
+  ];
+  let layoutIdx = 0;
+
+  function computeLayout() {
+    LAYOUTS[layoutIdx].fn();
+    applyPositions();
+  }
+
+  function layoutLayered(horiz) {
+    const { ids, size, links } = measureVisible();
+    // Flow axis (layers advance along it) vs cross axis (nodes stack across
+    // it); horiz=true is the classic left-to-right layered layout
+    const main = (id) => (horiz ? size[id].w : size[id].h);
+    const cross = (id) => (horiz ? size[id].h : size[id].w);
+    const place = (id, flowPos, crossPos) => {
+      pos[id] = horiz ? { x: flowPos, y: crossPos } : { x: crossPos, y: flowPos };
+    };
 
     // DFS cycle-break -> acyclic preds/succs
     const adj = {};
@@ -1403,6 +2040,16 @@
           if (--indeg[v] === 0) q.push(v);
         }
       }
+      // Tighten slack: longest-path parks every source at layer 0, which
+      // leaves a node whose only edges point deep into the graph with a
+      // needlessly long edge — pull such nodes up against their successors
+      for (let pass = 0; pass < 2; pass++) {
+        comp.forEach((id) => {
+          if (!succs[id].length) return;
+          const lo = Math.min.apply(null, succs[id].map((v) => layer[v])) - 1;
+          if (lo > layer[id]) layer[id] = lo;
+        });
+      }
     });
 
     let compY = 0;
@@ -1413,23 +2060,58 @@
         (layers[l] = layers[l] || []).push(id);
       });
 
-      // Crossing reduction: alternating down (preds) / up (succs) barycenter
-      // sweeps — one pass leaves most crossings; four converge on small graphs
+      // Crossing reduction: alternating down (preds) / up (succs) sweeps —
+      // median heuristic first (robust to outliers), barycenter to fine-tune —
+      // keeping whichever ordering counted the fewest crossings, like dot's
+      // best-of bookkeeping. The count only sees adjacent-layer edges (there
+      // are no virtual nodes for long edges), which is fine as a ranking.
       const order = {};
       layers.forEach((ly) => ly && ly.forEach((id, i) => (order[id] = i)));
+      const inComp = new Set(comp);
+      const compLinks = links.filter((e) => inComp.has(e.from));
       const bary = (id, nbrs) => {
         const n = nbrs[id];
         if (!n.length) return order[id];
         return n.reduce((s, q) => s + order[q], 0) / n.length;
       };
-      for (let s = 0; s < 4; s++) {
+      const medi = (id, nbrs) => {
+        const p = nbrs[id].map((q) => order[q]).sort((x, y) => x - y);
+        if (!p.length) return order[id];
+        const m = p.length >> 1;
+        return p.length % 2 ? p[m] : (p[m - 1] + p[m]) / 2;
+      };
+      const crossings = () => {
+        let x = 0;
+        for (let l = 0; l + 1 < layers.length; l++) {
+          const es = compLinks
+            .filter((e) => layer[e.from] === l && layer[e.to] === l + 1)
+            .map((e) => [order[e.from], order[e.to]])
+            .sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+          for (let i = 0; i < es.length; i++)
+            for (let j = i + 1; j < es.length; j++)
+              if (es[i][1] > es[j][1]) x++;
+        }
+        return x;
+      };
+      let bestOrder = Object.assign({}, order);
+      let bestX = crossings();
+      for (let s = 0; s < 8; s++) {
         const nbrs = s % 2 === 0 ? preds : succs;
+        const score = s < 4 ? medi : bary;
         layers.forEach((ly) => {
           if (!ly) return;
-          ly.sort((a, b) => bary(a, nbrs) - bary(b, nbrs) || order[a] - order[b]);
+          ly.sort((a, b) => score(a, nbrs) - score(b, nbrs) || order[a] - order[b]);
           ly.forEach((id, i) => (order[id] = i));
         });
+        const cx = crossings();
+        if (cx < bestX) { bestX = cx; bestOrder = Object.assign({}, order); }
       }
+      Object.assign(order, bestOrder);
+      layers.forEach((ly) => {
+        if (!ly) return;
+        ly.sort((a, b) => order[a] - order[b]);
+        ly.forEach((id, i) => (order[id] = i));
+      });
 
       // Vertical placement: stack, then pull each node toward the mean center
       // of its neighbors, resolving overlaps while preserving in-layer order.
@@ -1438,7 +2120,7 @@
       layers.forEach((ly) => {
         if (!ly) return;
         let y = 0;
-        ly.forEach((id) => { yPos[id] = y; y += size[id].h + V_GAP; });
+        ly.forEach((id) => { yPos[id] = y; y += cross(id) + V_GAP; });
       });
       for (let it = 0; it < 4; it++) {
         layers.forEach((ly) => {
@@ -1446,19 +2128,19 @@
           const desired = ly.map((id) => {
             const nbrs = [...preds[id], ...succs[id]];
             if (!nbrs.length) return yPos[id];
-            const mean = nbrs.reduce((s, n) => s + yPos[n] + size[n].h / 2, 0) / nbrs.length;
-            return mean - size[id].h / 2;
+            const mean = nbrs.reduce((s, n) => s + yPos[n] + cross(n) / 2, 0) / nbrs.length;
+            return mean - cross(id) / 2;
           });
           if (it % 2 === 0) {
             for (let i = 0; i < ly.length; i++) {
-              const floor = i === 0 ? -Infinity : yPos[ly[i - 1]] + size[ly[i - 1]].h + V_GAP;
+              const floor = i === 0 ? -Infinity : yPos[ly[i - 1]] + cross(ly[i - 1]) + V_GAP;
               yPos[ly[i]] = Math.max(desired[i], floor);
             }
           } else {
             for (let i = ly.length - 1; i >= 0; i--) {
               const ceil = i === ly.length - 1
                 ? Infinity
-                : yPos[ly[i + 1]] - V_GAP - size[ly[i]].h;
+                : yPos[ly[i + 1]] - V_GAP - cross(ly[i]);
               yPos[ly[i]] = Math.min(desired[i], ceil);
             }
           }
@@ -1470,17 +2152,17 @@
       let minY = Infinity, maxY = -Infinity;
       comp.forEach((id) => {
         minY = Math.min(minY, yPos[id]);
-        maxY = Math.max(maxY, yPos[id] + size[id].h);
+        maxY = Math.max(maxY, yPos[id] + cross(id));
       });
       let x = 0;
       layers.forEach((ly) => {
         if (!ly || !ly.length) return;
-        let maxW = 0;
+        let maxMain = 0;
         ly.forEach((id) => {
-          pos[id] = { x: x, y: compY + (yPos[id] - minY) };
-          maxW = Math.max(maxW, size[id].w);
+          place(id, x, compY + (yPos[id] - minY));
+          maxMain = Math.max(maxMain, main(id));
         });
-        x += maxW + H_GAP;
+        x += maxMain + H_GAP;
       });
       compY += (maxY - minY) + COMP_GAP;
     });
@@ -1490,14 +2172,12 @@
       const cols = Math.max(1, Math.ceil(Math.sqrt(isolated.length)));
       let gx = 0, gy = compY, rowH = 0, c = 0;
       isolated.forEach((id) => {
-        pos[id] = { x: gx, y: gy };
-        rowH = Math.max(rowH, size[id].h);
-        gx += size[id].w + H_GAP / 2;
+        place(id, gx, gy);
+        rowH = Math.max(rowH, cross(id));
+        gx += main(id) + H_GAP / 2;
         if (++c % cols === 0) { gx = 0; gy += rowH + V_GAP; rowH = 0; }
       });
     }
-
-    applyPositions();
   }
 
   function applyPositions() {
@@ -1558,7 +2238,7 @@
     for (const part of edgeParts) {
       const a = nodeRect(part.edge.from);
       const b = nodeRect(part.edge.to);
-      // An endpoint hidden by the minimized-nodes toggle hides its edges too
+      // An endpoint that isn't visible hides its edges too
       const hidden = !a.w || !b.w;
       part.path.style.display = hidden ? "none" : "";
       if (part.label) part.label.style.display = hidden ? "none" : "";
@@ -1653,14 +2333,16 @@
       ctx.fillRect(toX(r.x), toY(r.y), Math.max(2, r.w * mmScale), Math.max(2, r.h * mmScale));
     }
 
-    // Current viewport, in content coordinates
+    // Current viewport, in content coordinates. The docked explorer covers
+    // the left edge, so the truly visible region starts at RAIL_W.
     const vr = viewport.getBoundingClientRect();
+    const left = railOpen() ? RAIL_W : 0;
     ctx.globalAlpha = 1;
     ctx.strokeStyle = cssVar("--icon-hover-fg");
     ctx.lineWidth = 1.5;
     ctx.strokeRect(
-      toX(-panX / zoom), toY(-panY / zoom),
-      (vr.width / zoom) * mmScale, (vr.height / zoom) * mmScale);
+      toX((left - panX) / zoom), toY(-panY / zoom),
+      ((vr.width - left) / zoom) * mmScale, (vr.height / zoom) * mmScale);
   }
 
   function minimapCenterOn(e) {
@@ -1668,7 +2350,8 @@
     const cx = (e.clientX - rect.left - mmOffX) / mmScale;
     const cy = (e.clientY - rect.top - mmOffY) / mmScale;
     const vr = viewport.getBoundingClientRect();
-    panX = vr.width / 2 - cx * zoom;
+    const left = railOpen() ? RAIL_W : 0;
+    panX = left + (vr.width - left) / 2 - cx * zoom;
     panY = vr.height / 2 - cy * zoom;
     applyTransform();
   }
@@ -1711,7 +2394,31 @@
     updateMinimap();
   }
 
+  // Animated camera move: eased pan + log-space zoom over ~400ms. Any manual
+  // interaction (wheel, canvas grab, a newer flight) cancels it mid-air.
+  let flyToken = 0;
+  function flyTo(tz, tx, ty, dur) {
+    dur = dur || 400;
+    const token = ++flyToken;
+    const sz = zoom, sx = panX, sy = panY;
+    if (sz === tz && sx === tx && sy === ty) return;
+    const t0 = performance.now();
+    const ease = (t) => 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const step = (now) => {
+      if (token !== flyToken) return;
+      const t = Math.min(1, (now - t0) / dur);
+      const e = ease(t);
+      zoom = sz * Math.pow(tz / sz, e); // log-space: constant perceived rate
+      panX = sx + (tx - sx) * e;
+      panY = sy + (ty - sy) * e;
+      applyTransform();
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
   function zoomAt(cx, cy, newZoom) {
+    flyToken++; // manual zoom cancels any flight
     newZoom = Math.min(Math.max(newZoom, MIN_ZOOM), MAX_ZOOM);
     panX = cx - ((cx - panX) / zoom) * newZoom;
     panY = cy - ((cy - panY) / zoom) * newZoom;
@@ -1742,14 +2449,16 @@
     const b = contentBBox();
     if (!b || !b.w || !b.h) return;
     const r = viewport.getBoundingClientRect();
-    // Extra top padding keeps the floating title pill off the first row of nodes
+    // Extra top padding keeps the floating title pill off the first row of
+    // nodes; the open rail shifts the usable area right
     const padTop = 72;
+    const left = railOpen() ? RAIL_W : 0;
     const scale = Math.min(
-      (r.width - FIT_PADDING * 2) / b.w,
+      (r.width - left - FIT_PADDING * 2) / b.w,
       (r.height - padTop - FIT_PADDING) / b.h);
     if (scale > 0 && isFinite(scale)) {
       zoom = Math.min(Math.max(scale, MIN_ZOOM), MAX_ZOOM);
-      panX = (r.width - b.w * zoom) / 2 - b.x * zoom;
+      panX = left + (r.width - left - b.w * zoom) / 2 - b.x * zoom;
       panY = padTop + (r.height - padTop - FIT_PADDING - b.h * zoom) / 2 - b.y * zoom;
       applyTransform();
     }
@@ -1768,6 +2477,7 @@
   let panning = false, startX = 0, startY = 0;
   viewport.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
+    flyToken++; // grabbing the canvas cancels any flight
     panning = true;
     startX = e.clientX - panX;
     startY = e.clientY - panY;
@@ -1786,22 +2496,36 @@
   viewport.addEventListener("pointercancel", endPan);
 
   // ---- Node dragging ----------------------------------------------------------
-  function makeDraggable(el, id, handle) {
-    let dragging = false, moved = false, lastX = 0, lastY = 0;
+  // onTap fires on release without movement, with the ORIGINAL pointerdown
+  // target — needed because pointer capture retargets the eventual click to
+  // `el`, so child elements (like the header) never receive click events.
+  function makeDraggable(el, id, handle, onTap) {
+    let dragging = false, moved = false, lastX = 0, lastY = 0, downTarget = null;
+    let startX = 0, startY = 0;
     handle.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
       e.stopPropagation(); // never reaches the viewport pan handler
       e.preventDefault();
       dragging = true;
       moved = false;
-      lastX = e.clientX;
-      lastY = e.clientY;
+      downTarget = e.target;
+      startX = lastX = e.clientX;
+      startY = lastY = e.clientY;
       el.classList.add("dragging");
       handle.setPointerCapture(e.pointerId);
     });
     handle.addEventListener("pointermove", (e) => {
       if (!dragging) return;
-      if (Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY) > 2) moved = true;
+      // Trackpad clicks jitter a few px: a drag only starts once the pointer
+      // strays 5px from the press origin, so taps stay taps and the card
+      // doesn't creep on click
+      if (!moved) {
+        if (Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY) <= 5) return;
+        moved = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        return;
+      }
       // Deltas are screen px; positions are content px
       pos[id].x += (e.clientX - lastX) / zoom;
       pos[id].y += (e.clientY - lastY) / zoom;
@@ -1812,7 +2536,12 @@
       redrawEdges();
     });
     const end = () => { dragging = false; el.classList.remove("dragging"); };
-    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointerup", (e) => {
+      const wasDrag = dragging && moved;
+      end();
+      if (!wasDrag && onTap && downTarget) onTap(downTarget);
+      downTarget = null;
+    });
     handle.addEventListener("pointercancel", end);
     // A release at the end of a real drag must not activate whatever is under
     // the pointer (e.g. a markdown link)
@@ -1825,22 +2554,315 @@
     }, true);
   }
 
+  // ---- Narrative rail, selection, read tracking --------------------------------
+  // The rail is the review in reading order (manifest order); the canvas is the
+  // map. One selection drives both: rail click pans the map to the node, node
+  // click highlights its rail entry. Attending to a node marks it read;
+  // progress persists per manifest in localStorage (best-effort).
+  const rail = $("rv-rail");
+  const railList = $("rv-rail-list");
+  const RAIL_W = 280;
+  // Pinned = docked open (canvas shifts right). Unpinned = closed, but
+  // hovering the left edge peeks it open as an overlay (canvas stays put).
+  let railPinned = true;
+  let railOverlay = false;
+  const railOpen = () => railPinned; // docked width, for fit/focus/minimap math
+
+  const idxOf = {}, nodeById = {};
+  nodes.forEach((n, i) => { idxOf[n.id] = i; nodeById[n.id] = n; });
+
+  // Review targets and their priority. Warnings inherit severity; anything
+  // can carry an explicit `risk`; changesets/excerpts default medium, code
+  // carriers default low; markdown/shape/mermaid/image are context, not
+  // review obligations.
+  const riskOf = (node) => {
+    if (!node || node.type === "shape") return null;
+    if (node.type === "warning") return node.severity === "P2" ? "medium" : "high";
+    if (node.risk === "high" || node.risk === "medium" || node.risk === "low") return node.risk;
+    if (node.type === "callout") return "medium";
+    if (M.allTargets) return "medium"; // explain mode: every stop on the tour counts
+    if (node.type === "changeset" || node.type === "excerpt") return "medium";
+    if (node.type === "diff" || node.type === "files") return "low";
+    return null;
+  };
+  const RANK = { high: 0, medium: 1, low: 2 };
+  const targets = nodes.filter((n) => riskOf(n) !== null);
+  const walkOrder = targets.slice()
+    .sort((a, b) => (RANK[riskOf(a)] - RANK[riskOf(b)]) || (idxOf[a.id] - idxOf[b.id]))
+    .map((n) => n.id);
+
+  let sig = 0;
+  const sigStr = nodes.map((n) => n.id).join("|");
+  for (let i = 0; i < sigStr.length; i++) sig = (sig * 31 + sigStr.charCodeAt(i)) | 0;
+  const storeKey = "rv-read:" + (MANIFEST.url || TITLE) + ":" + sig;
+  let readSet = new Set();
+  try { readSet = new Set(JSON.parse(localStorage.getItem(storeKey) || "[]")); } catch (e) { /* storage off */ }
+
+  const railItems = {};
+  let selectedId = null;
+
+  function updateAttention() {
+    const hi = targets.filter((n) => riskOf(n) === "high");
+    const hiRead = hi.filter((n) => readSet.has(n.id)).length;
+    const allRead = targets.filter((n) => readSet.has(n.id)).length;
+    const att = $("rv-attention");
+    att.textContent = "";
+    const line = document.createElement("div");
+    line.textContent =
+      (hi.length ? hiRead + "/" + hi.length + " high-priority · " : "") +
+      allRead + "/" + targets.length + " " + M.meterVerb;
+    const bar = document.createElement("div");
+    bar.className = "att-bar";
+    const fill = document.createElement("div");
+    fill.className = "att-fill";
+    fill.style.width = (targets.length ? Math.round((allRead / targets.length) * 100) : 0) + "%";
+    bar.appendChild(fill);
+    att.appendChild(line);
+    att.appendChild(bar);
+  }
+
+  function persistRead() {
+    try { localStorage.setItem(storeKey, JSON.stringify(Array.from(readSet))); } catch (e) { /* storage off */ }
+  }
+
+  function markRead(id) {
+    if (riskOf(nodeById[id]) === null || readSet.has(id)) return;
+    readSet.add(id);
+    persistRead();
+    if (railItems[id]) railItems[id].classList.add("read");
+    updateAttention();
+  }
+
+  function unmarkRead(id) {
+    if (!readSet.has(id)) return;
+    readSet.delete(id);
+    persistRead();
+    if (railItems[id]) railItems[id].classList.remove("read");
+    updateAttention();
+  }
+
+  function setSelected(id, pan) {
+    selectedId = id;
+    document.querySelectorAll("#mv-content .selected").forEach((e) => e.classList.remove("selected"));
+    const el = nodeEls[id];
+    if (el && el.offsetWidth) el.classList.add("selected");
+    for (const k in railItems) railItems[k].classList.toggle("active", k === id);
+    if (railItems[id]) railItems[id].scrollIntoView({ block: "nearest" });
+    markRead(id);
+    if (pan && el && el.offsetWidth) {
+      const r = nodeRect(id);
+      const vr = viewport.getBoundingClientRect();
+      const left = railOpen() ? RAIL_W : 0;
+      const availW = vr.width - left;
+      let z = Math.min((availW * 0.75) / r.w, (vr.height * 0.75) / r.h);
+      z = Math.min(Math.max(z, 0.4), 1.25);
+      flyTo(z,
+        left + (availW - r.w * z) / 2 - r.x * z,
+        (vr.height - r.h * z) / 2 - r.y * z);
+    }
+  }
+
+  // Rail entries grouped by priority — the list mirrors the j/k walk and the
+  // attention meter. Context nodes (summary, diagrams, images) lead in
+  // manifest order; review targets follow under High/Medium/Low headers,
+  // manifest order within each group. Shapes are map furniture, not items.
+  function railItem(node) {
+    const item = document.createElement("div");
+    item.className = "rv-rail-item";
+    item.appendChild(icon(TYPE_ICON[node.type] || "lu-file", "ri-icon"));
+    const t = document.createElement("span");
+    t.className = "ri-title";
+    t.textContent = node.title || node.file || node.type;
+    item.appendChild(t);
+    const risk = riskOf(node);
+    if (node.type === "warning") {
+      const b = document.createElement("span");
+      b.className = "ri-badge";
+      b.textContent = node.severity;
+      b.style.background = "var(" + SEV_VAR[node.severity] + ")";
+      b.title = { P0: "P0 — must fix", P1: "P1 — should fix", P2: "P2 — nice to fix" }[node.severity];
+      item.appendChild(b);
+    }
+    if (node.type === "callout") {
+      const b = document.createElement("span");
+      b.className = "ri-badge";
+      b.textContent = { gotcha: "G", tip: "T", info: "i" }[node.tone] || "?";
+      b.style.background = "var(" + (TONE_VAR[node.tone] || "--sev2") + ")";
+      b.title = node.tone[0].toUpperCase() + node.tone.slice(1);
+      item.appendChild(b);
+    }
+    if (risk) {
+      const chk = icon("lu-check", "ri-check");
+      chk.addEventListener("click", (e) => {
+        e.stopPropagation(); // don't re-select (which would re-mark it read)
+        unmarkRead(node.id);
+      });
+      const chkTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+      chkTitle.textContent = "Mark as not reviewed";
+      chk.appendChild(chkTitle);
+      item.appendChild(chk);
+    }
+    if (readSet.has(node.id)) item.classList.add("read");
+    item.addEventListener("click", () => setSelected(node.id, true));
+    railItems[node.id] = item;
+    railList.appendChild(item);
+  }
+  function railGroup(label, riskVar, count) {
+    const g = document.createElement("div");
+    g.className = "rv-rail-group";
+    const dot = document.createElement("span");
+    dot.className = "rg-dot";
+    dot.style.background = "var(" + riskVar + ")";
+    g.appendChild(dot);
+    g.appendChild(document.createTextNode(label + " "));
+    const c = document.createElement("span");
+    c.className = "rg-count";
+    c.textContent = "(" + count + ")";
+    g.appendChild(c);
+    railList.appendChild(g);
+  }
+  // Section structure: author-declared `group` sections win in any mode
+  // (subsystem chapters); otherwise review mode groups by risk tier and
+  // explain mode stays flat in manifest (= tour) order.
+  const groupNames = [];
+  nodes.forEach((n) => {
+    if (n.type !== "shape" && typeof n.group === "string" && !groupNames.includes(n.group)) groupNames.push(n.group);
+  });
+  if (groupNames.length) {
+    nodes.forEach((n) => { if (n.type !== "shape" && n.group === undefined) railItem(n); });
+    for (const g of groupNames) {
+      const members = nodes.filter((n) => n.type !== "shape" && n.group === g);
+      railGroup(g, "--gutter-fg", members.length);
+      members.forEach(railItem);
+    }
+  } else if (M.groups === "risk") {
+    nodes.forEach((n) => {
+      if (n.type !== "shape" && riskOf(n) === null) railItem(n);
+    });
+    for (const tier of ["high", "medium", "low"]) {
+      const members = nodes.filter((n) => n.type !== "shape" && riskOf(n) === tier);
+      if (!members.length) continue;
+      railGroup(tier === "high" ? "High priority" : tier === "medium" ? "Medium priority" : "Low priority", RISK_VAR[tier], members.length);
+      members.forEach(railItem);
+    }
+  } else {
+    nodes.forEach((n) => { if (n.type !== "shape") railItem(n); });
+  }
+  document.querySelector('#rv-rail-tabs [data-tab="review"]').textContent = M.tab;
+  updateAttention();
+
+  // Files tab: every changed file (standalone diff chips + files-tray rows)
+  const filesList = $("rv-files-list");
+  function addFileRow(file, status, additions, deletions, targetId) {
+    const item = document.createElement("div");
+    item.className = "rv-rail-item";
+    const meta = STATUS_META[status] || STATUS_META.modified;
+    const badge = document.createElement("span");
+    badge.className = "rv-status";
+    badge.textContent = meta[0];
+    badge.style.background = "var(" + meta[1] + ")";
+    item.appendChild(badge);
+    const p = document.createElement("span");
+    p.className = "ri-path";
+    p.textContent = file;
+    p.title = file;
+    item.appendChild(p);
+    if (additions !== undefined || deletions !== undefined) {
+      const stats = document.createElement("span");
+      stats.className = "rv-stats";
+      stats.textContent = "+" + (additions || 0) + " −" + (deletions || 0);
+      item.appendChild(stats);
+    }
+    item.addEventListener("click", () => setSelected(targetId, true));
+    filesList.appendChild(item);
+  }
+  nodes.forEach((n) => {
+    if (n.type === "diff") addFileRow(n.file || n.title || "diff", n.status || "modified", n.additions, n.deletions, n.id);
+    else if (n.type === "files") (n.files || []).forEach((f) => addFileRow(f.file, f.status || "modified", f.additions, f.deletions, n.id));
+  });
+
+  const attention = $("rv-attention");
+  document.querySelectorAll("#rv-rail-tabs .rv-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("#rv-rail-tabs .rv-tab").forEach((t) => t.classList.toggle("active", t === tab));
+      const files = tab.dataset.tab === "files";
+      railList.hidden = files;
+      attention.hidden = files;
+      filesList.hidden = !files;
+    });
+  });
+
+  // Explorer state machine: pin docks it (canvas shifts), close unpins, and
+  // while unpinned the left-edge hotzone peeks it open as an overlay. The
+  // app/version/actions bar lives inside the explorer whenever it's visible.
+  const watermark = $("mv-watermark");
+  function applyRailState() {
+    const visible = railPinned || railOverlay;
+    rail.hidden = !visible;
+    rail.classList.toggle("overlay", visible && !railPinned);
+    app.classList.toggle("rail-open", railPinned);
+    const pin = $("rv-pin");
+    pin.classList.toggle("active", railPinned);
+    pin.title = railPinned ? "Unpin explorer" : "Pin explorer";
+    $("rv-menu-btn").hidden = visible;
+    if (visible && watermark.parentElement !== rail) rail.appendChild(watermark);
+    else if (!visible && watermark.parentElement !== app) app.appendChild(watermark);
+  }
+  function toggleRail() {
+    railPinned = !railPinned;
+    railOverlay = false;
+    applyRailState();
+    fit();
+  }
+  $("mv-rail-toggle").addEventListener("click", toggleRail);
+  // Unpinning keeps the panel open as an overlay until the pointer leaves;
+  // pinning from the overlay docks it
+  $("rv-pin").addEventListener("click", () => {
+    railOverlay = railPinned; // just-unpinned -> stay visible under the cursor
+    railPinned = !railPinned;
+    applyRailState();
+    fit();
+  });
+  $("rv-menu-btn").addEventListener("click", () => {
+    railPinned = true;
+    railOverlay = false;
+    applyRailState();
+    fit();
+  });
+  $("rv-hotzone").addEventListener("mouseenter", () => {
+    if (!railPinned && !railOverlay) { railOverlay = true; applyRailState(); }
+  });
+  rail.addEventListener("mouseleave", () => {
+    if (!railPinned && railOverlay) { railOverlay = false; applyRailState(); }
+  });
+  applyRailState();
+
+  // j/k: walk review targets by descending priority, skipping hidden nodes
+  function walk(delta) {
+    if (!walkOrder.length) return;
+    let i = walkOrder.indexOf(selectedId);
+    i = i === -1 ? (delta > 0 ? 0 : walkOrder.length - 1) : (i + delta + walkOrder.length) % walkOrder.length;
+    for (let tries = 0; tries < walkOrder.length; tries++) {
+      const el = nodeEls[walkOrder[i]];
+      if (el && el.offsetWidth) break;
+      i = (i + delta + walkOrder.length) % walkOrder.length;
+    }
+    setSelected(walkOrder[i], true);
+  }
+
   // ---- Controls -----------------------------------------------------------------
   $("mv-zoom-in").addEventListener("click", () => zoomCentered(ZOOM_STEP));
   $("mv-zoom-out").addEventListener("click", () => zoomCentered(1 / ZOOM_STEP));
   $("mv-fit").addEventListener("click", fit);
   $("mv-relayout").addEventListener("click", () => {
+    layoutIdx = (layoutIdx + 1) % LAYOUTS.length;
     computeLayout();
     redrawEdges();
     fit();
+    showToast("Layout: " + LAYOUTS[layoutIdx].name);
+    $("mv-relayout").dataset.tip =
+      "Cycle layout (R) — next: " + LAYOUTS[(layoutIdx + 1) % LAYOUTS.length].name;
   });
-  $("mv-toggle-min").addEventListener("click", () => {
-    const hiding = app.classList.toggle("hide-min");
-    $("mv-toggle-min").dataset.tip = hiding ? "Show minimized (H)" : "Hide minimized (H)";
-    redrawEdges();
-    fit();
-  });
-
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target;
@@ -1850,26 +2872,19 @@
     else if (e.key === "-") zoomCentered(1 / ZOOM_STEP);
     else if (e.key === "0") { zoom = 1; panX = 0; panY = 0; applyTransform(); }
     else if (e.key === "d") $("mv-theme").click();
-    else if (e.key === "s") toggleSource();
     else if (e.key === "r") $("mv-relayout").click();
     else if (e.key === "m") toggleMinimap();
-    else if (e.key === "h") $("mv-toggle-min").click();
+    else if (e.key === "n") toggleRail();
+    else if (e.key === "j") walk(1);
+    else if (e.key === "k") walk(-1);
   });
 
-  // ---- Toast / source panel / watermark ---------------------------------------------
+  // ---- Toast / watermark ---------------------------------------------
   function showToast(msg) {
     toast.textContent = msg;
     toast.classList.add("show");
     setTimeout(() => toast.classList.remove("show"), 2000);
   }
-
-  function toggleSource() {
-    const panel = $("mv-source-panel");
-    panel.hidden = !panel.hidden;
-    app.classList.toggle("src-open", !panel.hidden);
-  }
-  $("mv-src-toggle").addEventListener("click", toggleSource);
-  $("mv-src-close").addEventListener("click", toggleSource);
 
   async function copyText(text, doneMsg) {
     try {
@@ -1888,7 +2903,6 @@
     }
   }
 
-  $("mv-copy").addEventListener("click", () => copyText(JSON.stringify(MANIFEST, null, 2), "Copied"));
   $("mv-install").addEventListener("click", () =>
     copyText("npx skills add abrinsmead/skills/visual-code-reviewer", "Install command copied"));
   $("mv-update").addEventListener("click", () =>
@@ -1905,6 +2919,9 @@
     content.appendChild(el);
     pos[node.id] = { x: 0, y: 0 };
     if (el._shapeFinalize) el._shapeFinalize();
+    // Clicking a node selects it (rail syncs, counts as attended); real drags
+    // land on child elements and are swallowed by the moved-click guard
+    el.addEventListener("click", () => setSelected(node.id, false));
   }
   initEdges();
   renderAllMermaid().then(() => {
