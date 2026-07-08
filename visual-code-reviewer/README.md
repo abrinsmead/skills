@@ -48,7 +48,8 @@ The canvas also works without a diff: ask "Explain src/auth visually" or "Give m
 - **Themes** — follows the OS light/dark preference; manual toggle re-renders mermaid nodes in place
 - **Explorer + attention meter** — a left panel with two tabs: **Review**/**Tour** (the review in reading order with risk badges and read checkmarks — click a checkmark to un-mark it) and **Files** (every changed file with status and ±stats); click any entry to fly to its card. Pin button top-right; when unpinned, hovering the left edge peeks it open. `j`/`k` walks review targets by descending risk, marking them read; the meter shows "2/3 high-priority · 5/9 reviewed" and progress persists per manifest in localStorage
 - **Readable diffs** — word-level intra-line change emphasis on paired removed/added lines, plus minimal language-agnostic syntax highlighting (strings, comments, numbers, keywords) — all self-contained
-- Keyboard: `j`/`k` walk by risk · `f` fit · `r` layout direction · `n` explorer · `m` minimap · `d` theme · `+`/`−`/`0` zoom
+- **Slides** — presentation-style markdown cards (large type, palette accent, n/N chip, light/dark aware) for title, section, and takeaway framing; `←`/`→` steps through the review or tour like a deck
+- Keyboard: `←`/`→` or `j`/`k` walk the review · `f` fit · `r` layout direction · `n` explorer · `m` minimap · `d` theme · `+`/`−`/`0` zoom
 
 No PNG/SVG export in v1 — heterogeneous HTML cards don't rasterize reliably; use the OS screenshot tool.
 

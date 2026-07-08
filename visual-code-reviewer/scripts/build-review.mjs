@@ -59,7 +59,7 @@ try {
 }
 
 // --- Validate -------------------------------------------------------------
-const NODE_TYPES = ["mermaid", "diff", "excerpt", "changeset", "files", "markdown", "code", "warning", "callout", "shape", "image"];
+const NODE_TYPES = ["mermaid", "diff", "excerpt", "changeset", "files", "markdown", "code", "warning", "callout", "shape", "image", "slide"];
 const CHANGESET_KINDS = ["behavioral", "mechanical", "generated", "test", "docs", "config"];
 const RISKS = ["high", "medium", "low"];
 const TONES = ["info", "tip", "gotcha"];
@@ -105,7 +105,7 @@ manifest.nodes.forEach((n, i) => {
     errors.push(`${label}: unknown type "${n.type}" (expected ${NODE_TYPES.join(", ")})`);
     return; // type-specific checks would be noise
   }
-  const needsContent = ["mermaid", "diff", "excerpt", "markdown", "code", "warning", "callout"];
+  const needsContent = ["mermaid", "diff", "excerpt", "markdown", "code", "warning", "callout", "slide"];
   if (needsContent.includes(n.type) && typeof n.content !== "string") {
     errors.push(`${label}: type "${n.type}" requires a string \`content\``);
   }
@@ -123,6 +123,9 @@ manifest.nodes.forEach((n, i) => {
   }
   if (n.type === "callout" && !TONES.includes(n.tone)) {
     errors.push(`${label}: callout requires \`tone\` of ${TONES.join("/")}`);
+  }
+  if (n.type === "slide" && n.color !== undefined && !PALETTE.includes(n.color)) {
+    errors.push(`${label}: unknown color "${n.color}" (palette: ${PALETTE.join(", ")})`);
   }
   if (n.type === "changeset") {
     if (n.kind !== undefined && !CHANGESET_KINDS.includes(n.kind)) {

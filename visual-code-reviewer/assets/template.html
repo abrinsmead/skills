@@ -683,6 +683,48 @@
   }
   .rv-shape .rv-shape-label { position: relative; padding: 10px 16px; }
 
+  /* Slide cards: chromeless presentation-style markdown, 16:9-ish */
+  .rv-slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 640px;
+    min-height: 360px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-top: 4px solid var(--slide-accent, #4c6ef5);
+    border-radius: 14px;
+    box-shadow: var(--card-shadow);
+    cursor: grab;
+    padding: 30px 36px 44px;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .rv-slide.dragging { cursor: grabbing; }
+  .rv-slide .rv-slide-title {
+    font-size: 24px;
+    font-weight: 650;
+    line-height: 1.25;
+    margin: 0 0 14px;
+  }
+  .rv-slide .rv-md { padding: 0; font-size: 15px; line-height: 1.7; }
+  .rv-slide .rv-md h1 { font-size: 20px; }
+  .rv-slide .rv-md h2 { font-size: 17px; }
+  .rv-slide .rv-md h3 { font-size: 15px; }
+  .rv-slide .rv-md code { font-size: 13px; }
+  .rv-slide .rv-md ul, .rv-slide .rv-md ol { margin: 0.6em 0; }
+  .rv-slide .rv-slide-num {
+    position: absolute;
+    bottom: 12px; right: 16px;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--panel-dim);
+  }
+  .rv-slide .rv-copy { top: 10px; right: 10px; }
+  .rv-slide:hover .rv-copy { opacity: 1; }
+  .rv-slide.selected { outline: 2px solid var(--icon-hover-fg); outline-offset: 2px; }
+
   /* Per-node mermaid error strip */
   .rv-node-error {
     margin: 8px;
@@ -981,6 +1023,9 @@
   <symbol id="lu-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" />
   </symbol>
+  <symbol id="lu-presentation" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 3h20" /><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3" /><path d="m7 21 5-5 5 5" />
+  </symbol>
   <symbol id="lu-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
   </symbol>
@@ -1029,7 +1074,7 @@
   <div id="mv-toast"></div>
   <div id="rv-minimap" title="Minimap — click or drag to pan (M to hide)"><canvas id="rv-minimap-canvas"></canvas></div>
   <div id="mv-watermark">
-    <div class="wm-line"><a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener" title="abrinsmead/skills">visual-code-reviewer</a><span class="wm-ver">v2.1</span></div>
+    <div class="wm-line"><a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener" title="abrinsmead/skills">visual-code-reviewer</a><span class="wm-ver">v2.2</span></div>
     <div class="wm-line wm-actions">
       <span class="wm-link" id="mv-install" title="Copy install command">install</span>
       <span class="wm-sep">·</span>
@@ -1136,6 +1181,7 @@
     image: "lu-image",
     shape: "lu-workflow",
     callout: "lu-info",
+    slide: "lu-presentation",
   };
   const nodeIcon = (node) =>
     node.type === "callout" ? (CALLOUT_ICON[node.tone] || "lu-info") : (TYPE_ICON[node.type] || "lu-file");
@@ -1603,6 +1649,7 @@
 
   function buildNode(node) {
     if (node.type === "shape") return buildShape(node);
+    if (node.type === "slide") return buildSlide(node);
 
     const el = document.createElement("div");
     el.className = "rv-node";
@@ -1808,6 +1855,43 @@
         if (b) b.click();
       }
     });
+    return el;
+  }
+
+  // Presentation-style card: chromeless, big type, palette accent bar,
+  // "n / N" position chip when the deck has more than one slide
+  function buildSlide(node) {
+    const el = document.createElement("div");
+    el.className = "rv-slide";
+    el.dataset.type = "slide";
+    if (node.width) el.style.width = node.width + "px";
+    const colors = node.color && PALETTE[node.color];
+    if (colors) el.style.setProperty("--slide-accent", colors[0]);
+    if (node.title) {
+      const t = document.createElement("div");
+      t.className = "rv-slide-title";
+      t.textContent = node.title;
+      el.appendChild(t);
+    }
+    el.appendChild(renderMarkdown(node.content));
+    const slides = nodes.filter((n) => n.type === "slide");
+    if (slides.length > 1) {
+      const num = document.createElement("div");
+      num.className = "rv-slide-num";
+      num.textContent = (slides.indexOf(node) + 1) + " / " + slides.length;
+      el.appendChild(num);
+    }
+    const cp = document.createElement("button");
+    cp.className = "rv-copy";
+    cp.title = "Copy content";
+    cp.appendChild(icon("lu-copy"));
+    cp.addEventListener("pointerdown", (e) => e.stopPropagation());
+    cp.addEventListener("click", (e) => {
+      e.stopPropagation();
+      copyText(String(node.content), "Copied");
+    });
+    el.appendChild(cp);
+    makeDraggable(el, node.id, el);
     return el;
   }
 
@@ -2587,7 +2671,7 @@
     if (!node || node.type === "shape") return null;
     if (node.type === "warning") return node.severity === "P2" ? "medium" : "high";
     if (node.risk === "high" || node.risk === "medium" || node.risk === "low") return node.risk;
-    if (node.type === "callout") return "medium";
+    if (node.type === "callout" || node.type === "slide") return "medium";
     if (M.allTargets) return "medium"; // explain mode: every stop on the tour counts
     if (node.type === "changeset" || node.type === "excerpt") return "medium";
     if (node.type === "diff" || node.type === "files") return "low";
@@ -2885,6 +2969,8 @@
     else if (e.key === "n") toggleRail();
     else if (e.key === "j") walk(1);
     else if (e.key === "k") walk(-1);
+    else if (e.key === "ArrowRight") { e.preventDefault(); walk(1); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); walk(-1); }
   });
 
   // ---- Toast / watermark ---------------------------------------------
