@@ -11,7 +11,9 @@
 // --artifact:     <out>/<slug>.artifact.html — body-content-only, no DOCTYPE/head,
 //                 for hosts (Claude artifacts) that supply their own HTML skeleton.
 //
-// Prints the absolute output path on success.
+// Prints the absolute output path on stdout. A budget report (prose word counts,
+// node count, and layout-topology problems) goes to stderr as warnings — it never
+// blocks the build, and stdout stays exactly the path.
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -276,4 +278,105 @@ if (artifact) {
 }
 
 writeFileSync(outPath, html);
+
+// --- Budget report ----------------------------------------------------------
+// Structural validation alone lets a manifest satisfy every node-count rule and
+// still be an essay in boxes — the failure mode these canvases actually hit. So
+// measure the information load and say so. Warnings only; the canvas still built.
+// Goes to stderr so stdout stays exactly the output path for callers that parse it.
+const reviewMode = (manifest.mode ?? "review") === "review";
+const warnings = [];
+
+// Code isn't prose — a fenced block shouldn't count against a prose budget.
+const countWords = (s) =>
+  String(s ?? "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`[^`]*`/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+
+const PROSE_CAPS = {
+  changeset: ["note", 25],
+  warning: ["content", 40],
+  markdown: ["content", 80],
+  slide: ["content", 40],
+  callout: ["content", 40],
+};
+
+let visibleWords = 0;
+for (const n of manifest.nodes) {
+  const cap = PROSE_CAPS[n.type];
+  if (!cap) continue;
+  const [field, limit] = cap;
+  const words = countWords(n[field]);
+  visibleWords += words;
+  if (reviewMode && words > limit) {
+    warnings.push(`${n.id}: \`${field}\` is ${words} words (cap ${limit})`);
+  }
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+if (reviewMode) {
+  if (visibleWords > 300) {
+    warnings.push(`${visibleWords} visible words on the canvas (target ≤300) — cut words, not cards`);
+  }
+  if (manifest.nodes.length > 14) {
+    warnings.push(`${manifest.nodes.length} nodes (target 10–14)`);
+  }
+  const shapes = manifest.nodes.filter((n) => n.type === "shape").length;
+  if (shapes) {
+    warnings.push(`${plural(shapes, "shape node")} — review mode prefers one mermaid flowchart`);
+  }
+}
+
+// Structural checks run in both modes: these are layout correctness, not style.
+const order = new Map(manifest.nodes.map((n, i) => [n.id, i]));
+const preview = (list) => list.slice(0, 3).join(", ") + (list.length > 3 ? ", …" : "");
+
+const back = edges.filter((e) => order.get(e.to) < order.get(e.from));
+if (back.length) {
+  warnings.push(`${plural(back.length, "back edge")} (${preview(back.map((e) => `${e.from}→${e.to}`))}) — drawn, but ignored for ranking`);
+}
+
+const longSpans = edges.filter((e) => Math.abs(order.get(e.to) - order.get(e.from)) > 3);
+if (longSpans.length) {
+  warnings.push(`${plural(longSpans.length, "edge")} spanning >3 manifest positions — long edges get no crossing optimization`);
+}
+
+const linked = new Set(edges.flatMap((e) => [e.from, e.to]));
+const orphans = manifest.nodes.filter((n) => !linked.has(n.id)).map((n) => n.id);
+if (orphans.length) {
+  warnings.push(`${plural(orphans.length, "node")} with no edges (${preview(orphans)}) — orphans land in a grid below the canvas`);
+}
+
+const adjacency = new Map(manifest.nodes.map((n) => [n.id, []]));
+for (const e of edges) {
+  adjacency.get(e.from).push(e.to);
+  adjacency.get(e.to).push(e.from);
+}
+const visited = new Set();
+let components = 0;
+for (const n of manifest.nodes) {
+  if (visited.has(n.id)) continue;
+  components++;
+  const stack = [n.id];
+  while (stack.length) {
+    const id = stack.pop();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    for (const next of adjacency.get(id)) if (!visited.has(next)) stack.push(next);
+  }
+}
+if (components > 1) {
+  warnings.push(`${plural(components, "disconnected component")} — they stack vertically into a tall, mostly-empty canvas`);
+}
+
+if (warnings.length) {
+  process.stderr.write(`\nBudget report — ${visibleWords} visible words, ${manifest.nodes.length} nodes:\n`);
+  for (const w of warnings) process.stderr.write(`  ⚠ ${w}\n`);
+  process.stderr.write(`  Fix the manifest and rebuild — see "Format rules" in SKILL.md.\n\n`);
+}
+
 process.stdout.write(outPath + "\n");
