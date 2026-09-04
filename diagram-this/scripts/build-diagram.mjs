@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build a self-contained mermaid viewer HTML file from a .mmd source file.
+// Build a self-contained diagram viewer HTML file from a .mmd source file.
 //
 // Usage:
 //   node build-diagram.mjs <input.mmd> [--title "My Title"] [--out <dir>] [--artifact]

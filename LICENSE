@@ -24,8 +24,8 @@ SOFTWARE.
 
 Third-party components bundled in this repository:
 
-- Mermaid (mermaid-viewer/assets/mermaid.min.js) — MIT License,
+- Mermaid (diagram-this/assets/mermaid.min.js) — MIT License,
   Copyright (c) Knut Sveidqvist and Mermaid contributors,
   https://github.com/mermaid-js/mermaid
-- Lucide icons (inlined in mermaid-viewer/assets/template.html) — ISC License,
+- Lucide icons (inlined in diagram-this/assets/template.html) — ISC License,
   Copyright (c) Lucide Contributors, https://lucide.dev
