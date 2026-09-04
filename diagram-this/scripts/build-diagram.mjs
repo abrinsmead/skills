@@ -2,7 +2,7 @@
 // Build a self-contained diagram viewer HTML file from a .mmd source file.
 //
 // Usage:
-//   node build-diagram.mjs <input.mmd> [--title "My Title"] [--out <dir>] [--artifact]
+//   node build-diagram.mjs <input.mmd> [--title "My Title"] [--out <dir>] [--artifact] [--open]
 //
 // The output filename is derived from the input .mmd basename; --title only
 // sets the displayed title (defaults to the basename with underscores as spaces).
@@ -11,9 +11,12 @@
 // --artifact:     <out>/<slug>.artifact.html — body-content-only, no DOCTYPE/head,
 //                 for hosts (Claude artifacts) that supply their own HTML skeleton.
 //
+// --open:         also open the result in the default browser (ignored with --artifact).
+//
 // Prints the absolute output path on success.
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,17 +33,19 @@ let input = null;
 let title = null;
 let outDir = null;
 let artifact = false;
+let openAfter = false;
 
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--title") title = argv[++i];
   else if (a === "--out") outDir = argv[++i];
   else if (a === "--artifact") artifact = true;
+  else if (a === "--open") openAfter = true;
   else if (!input) input = a;
   else fail(`Unexpected argument: ${a}`);
 }
 
-if (!input) fail("Usage: build-diagram.mjs <input.mmd> [--title \"...\"] [--out <dir>] [--artifact]");
+if (!input) fail("Usage: build-diagram.mjs <input.mmd> [--title \"...\"] [--out <dir>] [--artifact] [--open]");
 
 // --- Read inputs ----------------------------------------------------------
 let source;
@@ -89,3 +94,20 @@ if (artifact) {
 
 writeFileSync(outPath, html);
 process.stdout.write(outPath + "\n");
+
+// --- Open ----------------------------------------------------------------
+// Spawned here rather than left to the caller: the path never has to survive a
+// copy into a second command, so a stale timestamp can't open the prior build.
+if (openAfter) {
+  if (artifact) {
+    process.stderr.write("--open ignored with --artifact (fragment HTML has no page skeleton)\n");
+  } else {
+    const [cmd, args] =
+      process.platform === "darwin" ? ["open", [outPath]]
+      : process.platform === "win32" ? ["cmd", ["/c", "start", "", outPath]]
+      : ["xdg-open", [outPath]];
+    const child = spawn(cmd, args, { stdio: "ignore", detached: true });
+    child.on("error", (e) => process.stderr.write(`Could not open browser: ${e.message}\n`));
+    child.unref();
+  }
+}

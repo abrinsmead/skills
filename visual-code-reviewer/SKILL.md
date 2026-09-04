@@ -138,31 +138,31 @@ classDef violet fill:#a78bfa,stroke:#8b5cf6,color:#fff
 classDef peach fill:#ffc9c9,stroke:#ffa8a8,color:#000
 ```
 
-## 4. Build the HTML
+## 4. Build the HTML and open it
 
 Run the build script that ships with this skill (`scripts/build-review.mjs`, resolved relative to the directory containing this SKILL.md):
 
 ```
-node <this-skill-directory>/scripts/build-review.mjs .review/<descriptive_name>.json
+node <this-skill-directory>/scripts/build-review.mjs .review/<descriptive_name>.json --open
 ```
 
-The script validates the manifest (clear error messages on bad ids, types, severities, or dangling edges — fix the JSON and rerun), inlines any image files, and prints the absolute path of the generated HTML (`<name>-<timestamp>.html`). Options: `--title` overrides the displayed title (defaults to `manifest.title`), `--out <dir>`, `--artifact` (see below).
+`--open` builds AND opens the result in the default browser in one step — use it by default. The script validates the manifest (clear error messages on bad ids, types, severities, or dangling edges — fix the JSON and rerun), inlines any image files, and prints the absolute path of the generated HTML (`<name>-<timestamp>.html`). Options: `--title` overrides the displayed title (defaults to `manifest.title`), `--out <dir>`, `--artifact` (see below), `--open`.
 
 **Never Read the generated .html files or the skill's assets/mermaid.min.js — each contains a 2.6 MB inlined library.** The `.json` manifest is the editable source of truth.
 
 If the opened page shows a "Diagram error" strip inside a mermaid card, fix that node's `content` per the rules above and rerun the script.
 
-## 5. Open it
+## 5. The viewer
 
-Open the printed path in the default browser: `open <path>` on macOS, `xdg-open <path>` on Linux, `start "" <path>` on Windows. In environments without a browser (headless/remote), send or attach the file instead.
+Omit `--open` only when there is no browser to open (headless/remote) — send or attach the file instead — or when you deliberately want to open it yourself (`open <path>` on macOS, `xdg-open <path>` on Linux, `start "" <path>` on Windows).
 
 The viewer: an **explorer** on the left with Review and Files tabs (the review in reading order with risk badges, read checkmarks (click one to un-mark), and an attention meter, plus a changed-files list — click any entry to fly to its node; pin/close buttons top-left, hover the left edge to peek when unpinned, `n` toggles), `j`/`k` or `←`/`→` to walk review targets by descending risk — forward/backward like a deck (marks them read; progress persists in localStorage per manifest), pan (drag empty canvas), zoom (wheel, +/− buttons), fit (`f`), layout direction toggle (`r` or the layout button — layered → (default) / layered ↓), theme toggle (`d`, follows system by default), and a minimap (top-right) — click or drag it to jump around a large canvas, `m` hides it. A GitHub PR `url` also renders an `owner/repo #N` subtitle under the title (plain repo urls show `owner/repo`). Cards drag from anywhere on the card; edges follow; text selection is disabled on the canvas — markdown, warning, and callout cards have a hover copy button (upper-right of the card) that copies their raw content. Clicking a card's header bar collapses/expands it. Every card collapses to its header bar via the chevron (and back); tall diff/code bodies scroll internally; folded unchanged diff lines reveal on click; the mouse wheel scrolls a scrollable card under the cursor and zooms the canvas everywhere else.
 
 ## 6. Artifact mode
 
-The DEFAULT output is the local HTML file opened in the browser (step 5). Build with `--artifact` ONLY when (a) the user explicitly asks for an artifact or a shareable link, or (b) there is no local browser to open (headless or remote session) — in that case say why you chose an artifact. Do not ask the user which mode they want; use the default.
+The DEFAULT output is the local HTML file opened in the browser (step 4). Build with `--artifact` ONLY when (a) the user explicitly asks for an artifact or a shareable link, or (b) there is no local browser to open (headless or remote session) — in that case say why you chose an artifact. Do not ask the user which mode they want; use the default.
 
-The emitted `<name>.artifact.html` is body-content-only (no DOCTYPE/head/body — the artifact host supplies its skeleton) and makes zero network requests, satisfying the artifact CSP. Pass the file to the Artifact tool by path; never pull its contents into context.
+`--open` is ignored in artifact mode. The emitted `<name>.artifact.html` is body-content-only (no DOCTYPE/head/body — the artifact host supplies its skeleton) and makes zero network requests, satisfying the artifact CSP. Pass the file to the Artifact tool by path; never pull its contents into context.
 
 ## 7. Iterate
 
