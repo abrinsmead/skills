@@ -1,23 +1,23 @@
-# mermaid-viewer
+# diagram-this
 
 An [agent skill](https://agentskills.io) that renders Mermaid diagrams into interactive HTML: pan/zoom, light/dark themes, PNG/SVG export. Each generated file is fully self-contained — nothing to run or host, no network requests, works offline.
 
 Derived from [mindpilot-mcp](https://github.com/abrinsmead/mindpilot-mcp): the agent writes a `.mmd` file, runs one build script, and opens the result in your browser.
 
-![CI/CD pipeline flowchart rendered by mermaid-viewer](../docs/screenshot-cicd.png)
+![CI/CD pipeline flowchart rendered by diagram-this](../docs/screenshot-cicd.png)
 
 ## Install
 
 Installs via [skills.sh](https://skills.sh), the open agent skills CLI:
 
 ```
-npx skills add abrinsmead/skills/mermaid-viewer
+npx skills add abrinsmead/skills/diagram-this
 ```
 
 Update:
 
 ```
-npx skills update mermaid-viewer
+npx skills update diagram-this
 ```
 
 `add` takes the full `owner/repo/skill` source path; `update` takes the installed skill's name.

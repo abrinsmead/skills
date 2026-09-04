@@ -6,7 +6,7 @@ Agent skills by [@abrinsmead](https://github.com/abrinsmead).
 
 | Skill | What it does |
 |---|---|
-| [mermaid-viewer](mermaid-viewer/) | Renders Mermaid diagrams into self-contained interactive HTML — pan/zoom, light/dark themes, PNG/SVG export, no servers, works offline. |
+| [diagram-this](diagram-this/) | Renders Mermaid diagrams into self-contained interactive HTML — pan/zoom, light/dark themes, PNG/SVG export, no servers, works offline. |
 | [visual-code-reviewer](visual-code-reviewer/) | Reviews PRs/diffs and explains existing code on an interactive canvas — changesets, diffs, diagrams, callouts, and warnings connected by labeled edges, with a review explorer. |
 
 ## Install
@@ -20,7 +20,7 @@ npx skills add abrinsmead/skills
 or pick a specific skill:
 
 ```
-npx skills add abrinsmead/skills/mermaid-viewer
+npx skills add abrinsmead/skills/diagram-this
 npx skills add abrinsmead/skills/visual-code-reviewer
 ```
 

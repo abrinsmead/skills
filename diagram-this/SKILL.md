@@ -1,9 +1,9 @@
 ---
-name: mermaid-viewer
+name: diagram-this
 description: Render Mermaid diagrams into a self-contained interactive HTML viewer with pan/zoom, light/dark theme, PNG/SVG export, and source view. Use when the user asks to "diagram this", "visualize", "show the architecture", asks for a flowchart, swimlane, sequence diagram, state machine, ERD, mindmap, sankey, gantt, timeline, class diagram, or any other diagram, or provides Mermaid source to render.
 ---
 
-# Mermaid Viewer
+# Diagram This
 
 Renders a Mermaid diagram into a single self-contained HTML file (mermaid.js inlined, no network needed) and opens it in the browser. The output also works as a Claude artifact.
 
