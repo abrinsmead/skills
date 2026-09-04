@@ -1,9 +1,9 @@
 ---
-name: visual-code-reviewer
-description: Turn a PR, branch, or diff into an interactive visual review canvas — or existing code into a guided visual tour. Draggable cards for changesets, diffs, source excerpts, mermaid diagrams, explainer notes, callouts, screenshots, and P0/P1/P2 warnings, connected by labeled edges on a pan/zoom canvas with a review explorer. Use when the user asks to "review this PR visually", wants a "visual review" or "review canvas", says "walk me through this diff/PR", asks to explain a change/branch/PR visually — or asks to "explain this codebase/module visually", "give me a code tour", or "show me how this code works".
+name: explain-this
+description: Turn a PR, branch, or diff into an interactive visual review canvas — or existing code into a guided visual tour. Draggable cards for changesets, diffs, code, mermaid diagrams, notes, slides, screenshots, and callouts (tips, gotchas, and P0/P1/P2 findings), connected by labeled edges on a pan/zoom canvas with a review explorer. Use when the user asks to "review this PR visually", wants a "visual review" or "review canvas", says "walk me through this diff/PR", asks to explain a change/branch/PR visually — or asks to "explain this codebase/module visually", "give me a code tour", or "show me how this code works".
 ---
 
-# Visual Code Reviewer
+# Explain This
 
 Analyzes a change and renders the review as a single self-contained HTML canvas (mermaid.js inlined, no network needed): heterogeneous node cards connected by labeled edges, auto-laid-out left-to-right, draggable, with pan/zoom and light/dark themes. The output also works as a Claude artifact.
 
@@ -21,29 +21,35 @@ Read enough surrounding source to actually review the change — risky spots, da
 
 | Node | Role |
 |---|---|
-| One `markdown` summary card, first in the manifest | What the change claims to do, whether the changesets support that claim, your verdict. For large or presentation-worthy reviews, lead with a title `slide` and close with a verdict `slide` instead |
+| One `markdown` summary card, first in the manifest | What the change claims to do, whether the changesets support that claim, your verdict. For large or presentation-worthy reviews, lead with a title slide (`markdown` with `"slide": true`) and close with a verdict slide instead |
 | One `changeset` node per semantic unit (usually 2–8) | `kind`: `behavioral` / `mechanical` / `generated` / `test` / `docs` / `config`. `risk`: `high` / `medium` / `low` — behavioral changes to shared state, concurrency, auth, or migrations are high; mechanical sweeps are low even when huge. `note`: what this changeset does and why the reviewer should trust it. `slices`: the hunks that prove it (each `{file, line, content}` — copy the hunk(s) with `@@` lines, a few context lines, under ~40 lines per slice; mechanical/generated changesets often need one representative slice or none) |
-| `warning` nodes (P0/P1/P2) | Every finding, edge-linked to the changeset it concerns |
-| 3–8 `shape` nodes — only when the change alters a runtime flow | Entry points (`start`), steps (`process`), branches (`decision`), artifacts read/written (`io`), completion (`end`) — with changesets edge-linked to the steps they alter |
-| `mermaid` — before/after pairs | When the change alters something with formal shape, render **both** states: two `erDiagram`s ("was" / "becomes") for a migration, two state machines for a lifecycle change, a `sequenceDiagram` for a new cross-service flow. Edge-link the pair with "was" → "becomes" |
+| `callout` nodes with `severity` (P0/P1/P2) | Every finding, edge-linked to the changeset it concerns |
+| 3–8 `shape` nodes — only when the change alters a runtime flow | **The flow primitive.** Entry points (`start`), steps (`process`), branches (`decision`), artifacts read/written (`io`), completion (`end`) — with changesets edge-linked to the steps they alter. Runtime flows are always `shape` chains, never mermaid flowcharts — shapes participate in the canvas (chips dock to them, edges label real relationships); a flowchart card is a picture |
+| `mermaid` — before/after pairs | Reserve mermaid for structures with **formal shape**: two `erDiagram`s ("was" / "becomes") for a migration, two state machines for a lifecycle change, a `sequenceDiagram` for a new cross-service flow. Edge-link the pair with "was" → "becomes" |
 | Appendix: `diff` chips (all `minimized: true`) or one `files` tray | Every changed file's **complete diff**, one click away (`git diff -U999999 <base>...HEAD -- <file>`, `-U20` for files over ~1000 lines). Chips when files dock naturally onto shapes/changesets; the tray when they don't |
 
 Rules of composition:
-- **Manifest order is the narrative** — the rail presents it top to bottom: summary, changesets (highest risk first), warnings near their changeset, appendix last.
-- Every `warning` edge-links to the changeset (or slice's chip) it concerns; every chip edge-links to the changeset or step it belongs to.
+- **Manifest order is the narrative** — the rail presents it top to bottom: summary, changesets (highest risk first), findings near their changeset, appendix last.
+- Every finding edge-links to the changeset (or slice's chip) it concerns; every chip edge-links to the changeset or step it belongs to.
 - Label nearly every edge with an **active verb naming the real relationship**: "implements", "proves", "tested by", "was/becomes", "finding". An unlabeled edge is the exception.
 - Set the manifest `title` to a one-line description of the change (not "PR #482"), and `url` to the PR link when there is one — the title pill becomes a link.
-- The viewer tracks reviewer attention: nodes with `risk` (and warnings) count toward the coverage meter, `j`/`k` walks them by descending risk. Set `risk` honestly — it allocates the reviewer's attention.
+- The viewer tracks reviewer attention: nodes with `risk` (and severity callouts) count toward the coverage meter, `j`/`k` walks them by descending risk. Set `risk` honestly — it allocates the reviewer's attention.
 
 ## 2b. Explain mode — a tour of existing code
 
-When the user wants existing code explained (no diff), set top-level `"mode": "explain"`. Gather with Read/Glob — the manifest carries *current source*, not diffs. The semantics shift from triage to comprehension:
+When the user wants existing code explained (no diff), set top-level `"mode": "explain"`. Gather with Read/Glob — the manifest carries *current source*, not diffs. The semantics shift from triage to comprehension.
 
-- **Composition**: a title `slide` first (name of the thing, one-line thesis, a colored accent) → an orientation `markdown` card or agenda slide (what this code is, how to read the tour) → an architecture `mermaid` (flowchart/class/ER) → a `shape` chain for the main runtime flow if one matters → `code` cards for the definitions worth reading (set `line` to the real starting line number — renders with a line-number gutter and syntax highlighting; add a `note` saying why this matters) → `callout` nodes for the things a newcomer would trip on → a takeaways `slide` near the end (the 3–5 things to remember) → optionally one `files` tray of the key files (full source as `content`, `lines` count instead of ±stats).
-- **Slides frame, cards prove**: use 2–4 slides per tour (title, optional section dividers, takeaways) — big claims and framing on slides, evidence in code/mermaid/callout cards. `←`/`→` steps through the tour like a deck.
-- **Manifest order is the tour.** The explorer tab reads "Tour", the meter counts nodes "visited", and `j`/`k` walks manifest order.
+**Whiteboard it.** Someone explaining their repo at a whiteboard draws ONE picture — the runtime story as boxes and arrows — then narrates a walk over it, sticks annotations next to the parts that bite, and pulls up code only when a step needs proof. Compose the tour the same way:
+
+- **The spine is a `shape` map** (usually 5–12 shapes): the main runtime story as `start`/`process`/`decision`/`io`/`end`, edges labeled with active verbs ("writes", "validates", "splices into"). This is the marker drawing; it lays the canvas out (topology drives placement when shapes are present).
+- **Code docks behind the map**: `code` cards with `minimized: true` (requires `file`; set `line` to the real starting line number — the chip shows `file:line`, and the expanded card renders a line-number gutter with syntax highlighting). Edge-link each chip to the step it illuminates (dashed, e.g. "inside this step"). A reader clicks the chip when they want proof; the board stays clean until then. Add a `note` saying why the code matters, and give every chip a short `title` naming what the code IS ("the splice", "fail-once validator") — the tour rail lists titles, and a rail of repeated file paths says nothing.
+- **Callouts are the stickies**: `tone: "gotcha"` (this will bite you), `"tip"` (do it this way), `"info"` (context) — docked (dashed edge) to the shape or chip they annotate. Severities are for review findings, not tours.
+- **Slides are the board's corners**: a title slide (`markdown` with `"slide": true` — name of the thing, one-line thesis, a colored accent) first, a takeaways slide (the 3–5 things to remember) last, at most one section divider between. Big claims on slides, evidence on the board.
+- **`mermaid` is a side panel, not the map**: reserve it for structures with formal shape (class/ER/state/sequence) that the box-and-arrow spine can't carry. Optionally one `files` tray of the key files (full source as `content`, `lines` count instead of ±stats).
+- **Manifest order is the tour.** The explorer tab reads "Tour", the meter counts nodes "visited", and `j`/`k` walks manifest order — order the satellites as a narrated walk over the map (shapes are map furniture, not tour stops). A manifest with no shapes falls back to a reading-order grid (rows, left-to-right) instead of topology layout.
+- **Beyond the spine, edges are docking, not narration.** Don't chain cards with "then"/"next" edges — the walk already carries sequence. Author an edge only for a real relationship: chip → step, sticky → chip, "was/becomes".
 - **Group by subsystem**: give nodes a `group` string ("Parser", "Layout", "Persistence") — the explorer renders those as sections in first-appearance order. (Works in review mode too, where it overrides the risk tiers.)
-- **Callouts, not warnings**: `tone: "gotcha"` (this will bite you), `"tip"` (do it this way), `"info"` (context). Edge-link each to the code card it annotates.
+- **Tones, not severities**: callouts carry `tone: "gotcha"` (this will bite you), `"tip"` (do it this way), `"info"` (context) — severities are for review findings. Edge-link each to the code card it annotates.
 - Set `url` to the repo (`https://github.com/owner/repo`) — file refs then link to blob pages, with `#L<line>` anchors where a `line` is set.
 
 ## 3. Write the manifest
@@ -66,7 +72,7 @@ Write JSON to `.review/<descriptive_name>.json` in the current working directory
       ] },
     { "id": "cs_tests", "type": "changeset", "title": "Limiter unit tests", "kind": "test", "risk": "low",
       "note": "Covers acquire/refill; **no concurrency test** — consistent with the race below going uncaught." },
-    { "id": "w_race", "type": "warning", "severity": "P0", "title": "Race on bucket refill",
+    { "id": "w_race", "type": "callout", "severity": "P0", "title": "Race on bucket refill",
       "file": "src/limiter.ts", "line": 24,
       "content": "Two concurrent requests can both pass the check. Use a **Lua script** so the decrement is atomic." },
     { "id": "d_limiter", "type": "diff", "file": "src/limiter.ts", "minimized": true,
@@ -89,26 +95,21 @@ Write JSON to `.review/<descriptive_name>.json` in the current working directory
 Schema:
 
 - Top-level: `title` (string), optional `url` (PR or repo link), optional `mode` (`"review"` default, or `"explain"`), `nodes` (non-empty array), `edges` (array, optional).
-- Every node: unique `id` of `[a-zA-Z0-9_-]+`, a `type`, optional `title`, optional `width` (px, overrides the type default — diffs 720, excerpts/code 560, files tray 520, markdown 440, warning 380, image 480).
+- Every node: unique `id` of `[a-zA-Z0-9_-]+`, a `type` (one of 9: `mermaid`, `diff`, `changeset`, `files`, `markdown`, `code`, `callout`, `shape`, `image`), optional `title`, optional `width` (px, overrides the type default — diffs 720, code 560, files tray 520, markdown 440, callout 380, image 480).
 - `mermaid` — `content` is mermaid source (rules below).
 - `changeset` — a semantic unit of change. Optional `kind` (`behavioral`/`mechanical`/`generated`/`test`/`docs`/`config`, shown as a badge), optional `risk` (`high`/`medium`/`low`, sets the accent color and drives the attention meter and `j`/`k` walk order), `note` (markdown), `slices` (array of `{ file?, line?, content }` diff slices rendered with per-slice file headers). Needs `note`, `slices`, or both.
 - Any node may carry `risk` — it marks the node as a review target for the coverage meter — and `group` (string), a named explorer section.
-- `callout` — an annotation that isn't a defect. Required `tone` (`"gotcha"`/`"tip"`/`"info"` — amber/green/blue accent + badge) and markdown `content`; optional `title`, `file`, `line`.
-- `slide` — a presentation-style card: chromeless 16:9-ish surface with large type and a palette accent bar, theme-aware. `content` is markdown; optional `title` (rendered as the slide heading) and `color` (palette name for the accent). Multi-slide decks show an "n / N" chip. Slides count as review/tour steps for the walk and the meter.
-- `code` — `content` rendered in monospace with syntax highlighting; optional `file`, `note` (markdown above the code), and `line` (number — renders a line-number gutter starting there).
-- `files` entries may carry `lines` (number) instead of `additions`/`deletions`; in explain mode tray contents render as numbered source, not diffs.
-- `excerpt` — a focused slice of diff. `content` is the hunk(s) with their `@@` lines (rendered with line numbers and +/− coloring; without `@@` lines it degrades to plain monospace). Optional `note` (markdown, rendered above the code), `file`, `line`, `title`, `status`.
-- `files` — the changed-files tray. Required `files`: non-empty array of `{ file, content, status?, additions?, deletions? }` where `content` is that file's complete unified diff (keep `---`/`+++`/`@@` lines). Rows render as accordion chips; clicking expands the diff inline. Optional `title` (defaults to "Changed files (N)").
+- `callout` — a docked annotation or finding, with exactly one of two taxonomies: `tone` (`"gotcha"`/`"tip"`/`"info"` — amber/green/blue accent + badge; for explaining) or `severity` (`"P0"` red = must fix, `"P1"` orange = should fix, `"P2"` yellow = nice to fix; for review findings). Markdown `content`; optional `title`, `file`, `line`.
+- `code` — code evidence, both source and diff slices. `content` with `@@` hunk lines renders as a diff (line numbers, +/− coloring, word-level emphasis); without them it renders as source — syntax-highlighted, with a line-number gutter when `line` is set (use the real starting line). Optional `note` (markdown, rendered above the code), `file`, `title`, `status`, and `minimized: true` (start as a compact `file:line` chip that expands on click — requires `file`).
+- `files` — the changed-files tray. Required `files`: non-empty array of `{ file, content, status?, additions?, deletions? }` where `content` is that file's complete unified diff (keep `---`/`+++`/`@@` lines). Rows render as accordion chips; clicking expands the diff inline. Optional `title` (defaults to "Changed files (N)"). Entries may carry `lines` (number) instead of `additions`/`deletions`; in explain mode tray contents render as numbered source, not diffs.
 - `diff` — a changed file. Usually `minimized: true` (a chip that expands on click, relayouting the canvas). `content` is that file's complete unified diff (keep the `---`/`+++`/`@@` lines; don't trim hunks). Generate it with maximal context so the whole file is present and the viewer folds the unchanged parts GitHub-style: `git diff -U999999 <base>...HEAD -- <file>` (use `-U20` for files over ~1000 lines; plain `gh pr diff` 3-line context is an acceptable fallback when there is no local checkout — absent regions simply don't render). Rendered with line numbers and +/− coloring; runs of more than ~8 unchanged lines fold behind a click-to-reveal "⋯ N unchanged lines" row; malformed content degrades to plain text. Other fields: `file` (full repo path — required when minimized), optional `title`, `status` (`added`/`modified`/`deleted`/`renamed`, shown as a colored badge), `additions`, `deletions`, and `minimized: true` (start as a compact chip; viewers click to expand into the diff, chevron folds it back).
-- `markdown` — `content` supports `#`–`###` headings, `**bold**`, `*italic*`, `` `code` ``, fenced code blocks, `-`/`1.` lists, and `[text](https://...)` links.
-- `code` — `content` rendered verbatim in monospace; optional `file`.
-- `warning` — required `severity` `"P0"|"P1"|"P2"` (P0 red = must fix, P1 orange = should fix, P2 yellow = nice to fix); `content` is markdown; optional `file` and `line`.
+- `markdown` — `content` supports `#`–`###` headings, `**bold**`, `*italic*`, `` `code` ``, fenced code blocks, `-`/`1.` lists, and `[text](https://...)` links. Optional `slide: true` renders it as a presentation card instead: a chromeless 16:9-ish surface with large type and a palette accent bar (optional `color`, palette name), `title` as the slide heading. Slides count as review/tour steps for the walk and the meter.
 - `shape` — required `shape` (`start`, `end`, `process`, `decision`, `io`) and `label`; optional `color` from the palette names below.
 - `image` — required `src`: a local file path (resolved relative to the manifest and inlined as a data URI at build time) or an existing `data:` URI; optional `alt`.
 - Any node: optional `href` (http/https) — makes the header file reference a link.
 - Edges: `from`/`to` node ids, optional `label`, optional `style` (`"solid"` default or `"dashed"` — use dashed for findings and secondary relationships).
 
-File references link out automatically: when the top-level `url` is a GitHub PR link, `diff`/`code`/`warning` header refs and chip paths whose `file` is a full repo-relative path (contains a `/`) open that file in the PR's Files tab in a new tab. Prefer full repo paths in `file` fields so this works; set `href` explicitly for non-GitHub hosts.
+File references link out automatically: when the top-level `url` is a GitHub PR link, `diff`/`code`/`callout` header refs and chip paths whose `file` is a full repo-relative path (contains a `/`) open that file in the PR's Files tab in a new tab. Prefer full repo paths in `file` fields so this works; set `href` explicitly for non-GitHub hosts.
 
 ### Mermaid content rules
 
@@ -156,7 +157,7 @@ If the opened page shows a "Diagram error" strip inside a mermaid card, fix that
 
 Omit `--open` only when there is no browser to open (headless/remote) — send or attach the file instead — or when you deliberately want to open it yourself (`open <path>` on macOS, `xdg-open <path>` on Linux, `start "" <path>` on Windows).
 
-The viewer: an **explorer** on the left with Review and Files tabs (the review in reading order with risk badges, read checkmarks (click one to un-mark), and an attention meter, plus a changed-files list — click any entry to fly to its node; pin/close buttons top-left, hover the left edge to peek when unpinned, `n` toggles), `j`/`k` or `←`/`→` to walk review targets by descending risk — forward/backward like a deck (marks them read; progress persists in localStorage per manifest), pan (drag empty canvas), zoom (wheel, +/− buttons), fit (`f`), layout direction toggle (`r` or the layout button — layered → (default) / layered ↓), theme toggle (`d`, follows system by default), and a minimap (top-right) — click or drag it to jump around a large canvas, `m` hides it. A GitHub PR `url` also renders an `owner/repo #N` subtitle under the title (plain repo urls show `owner/repo`). Cards drag from anywhere on the card; edges follow; text selection is disabled on the canvas — markdown, warning, and callout cards have a hover copy button (upper-right of the card) that copies their raw content. Clicking a card's header bar collapses/expands it. Every card collapses to its header bar via the chevron (and back); tall diff/code bodies scroll internally; folded unchanged diff lines reveal on click; the mouse wheel scrolls a scrollable card under the cursor and zooms the canvas everywhere else.
+The viewer: an **explorer** on the left with Review and Files tabs (the review in reading order with risk badges, read checkmarks (click one to un-mark), and an attention meter, plus a changed-files list — click any entry to fly to its node; pin/close buttons top-left, hover the left edge to peek when unpinned, `n` toggles), `j`/`k` or `←`/`→` to walk review targets by descending risk — forward/backward like a deck (marks them read; progress persists in localStorage per manifest), pan (drag empty canvas), zoom (wheel, +/− buttons), fit (`f`), layout toggle (`r` or the layout button — layered → / layered ↓, plus a reading-order grid in explain mode, which is the default there only when the manifest has no shape map), theme toggle (`d`, follows system by default), and a minimap (top-right) — click or drag it to jump around a large canvas, `m` hides it. A GitHub PR `url` also renders an `owner/repo #N` subtitle under the title (plain repo urls show `owner/repo`). Cards drag from anywhere on the card; edges follow; text selection is disabled on the canvas — markdown, slide, and callout cards have a hover copy button (upper-right of the card) that copies their raw content. Clicking a card's header bar collapses/expands it. Every card collapses to its header bar via the chevron (and back); tall diff/code bodies scroll internally; folded unchanged diff lines reveal on click; the mouse wheel scrolls a scrollable card under the cursor and zooms the canvas everywhere else.
 
 ## 6. Artifact mode
 

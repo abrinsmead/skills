@@ -714,13 +714,6 @@
   .rv-slide .rv-md h3 { font-size: 15px; }
   .rv-slide .rv-md code { font-size: 13px; }
   .rv-slide .rv-md ul, .rv-slide .rv-md ol { margin: 0.6em 0; }
-  .rv-slide .rv-slide-num {
-    position: absolute;
-    bottom: 12px; right: 16px;
-    font-size: 11px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: var(--panel-dim);
-  }
   .rv-slide .rv-copy { top: 10px; right: 10px; }
   .rv-slide:hover .rv-copy { opacity: 1; }
   .rv-slide.selected { outline: 2px solid var(--icon-hover-fg); outline-offset: 2px; }
@@ -1074,7 +1067,7 @@
   <div id="mv-toast"></div>
   <div id="rv-minimap" title="Minimap — click or drag to pan (M to hide)"><canvas id="rv-minimap-canvas"></canvas></div>
   <div id="mv-watermark">
-    <div class="wm-line"><a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener" title="abrinsmead/skills">visual-code-reviewer</a><span class="wm-ver">v2.2</span></div>
+    <div class="wm-line"><a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener" title="abrinsmead/skills">explain-this</a><span class="wm-ver">v3.0</span></div>
     <div class="wm-line wm-actions">
       <span class="wm-link" id="mv-install" title="Copy install command">install</span>
       <span class="wm-sep">·</span>
@@ -1181,15 +1174,15 @@
     image: "lu-image",
     shape: "lu-workflow",
     callout: "lu-info",
-    slide: "lu-presentation",
+    slide: "lu-text",
   };
   const nodeIcon = (node) =>
     node.type === "callout" ? (CALLOUT_ICON[node.tone] || "lu-info") : (TYPE_ICON[node.type] || "lu-file");
   // Mode vocabulary: review = triage a diff; explain = tour existing code.
   // Everything mode-dependent reads M.* — no scattered mode branches.
   const MODES = {
-    review:  { tab: "Review", meterVerb: "reviewed", groups: "risk",  allTargets: false, sourceTray: false },
-    explain: { tab: "Tour",   meterVerb: "visited",  groups: "flat",  allTargets: true,  sourceTray: true },
+    review:  { tab: "Review", meterVerb: "reviewed", groups: "risk",  allTargets: false, sourceTray: false, reading: false },
+    explain: { tab: "Tour",   meterVerb: "visited",  groups: "flat",  allTargets: true,  sourceTray: true,  reading: true },
   };
   const M = MODES[MANIFEST.mode] || MODES.review;
 
@@ -1521,6 +1514,17 @@
   // ---- Node construction -----------------------------------------------------
   const nodes = MANIFEST.nodes || [];
   const edges = MANIFEST.edges || [];
+
+  // The v3 schema exposes 9 authoring types; three render variants survive as
+  // internal types so the render/rail/walk paths below stay untouched:
+  // markdown+slide -> slide card, callout+severity -> warning styling, code
+  // whose content carries @@ hunks -> excerpt (diff-slice rendering).
+  for (const n of nodes) {
+    if (!n || typeof n !== "object") continue;
+    if (n.type === "markdown" && n.slide) n.type = "slide";
+    else if (n.type === "callout" && n.severity !== undefined) n.type = "warning";
+    else if (n.type === "code" && /^@@/m.test(String(n.content || ""))) n.type = "excerpt";
+  }
   const nodeEls = {};  // id -> element
   const pos = {};      // id -> {x, y}; written by layout, then owned by drag
 
@@ -1667,26 +1671,30 @@
       el.style.setProperty("--risk-color", "var(" + (RISK_VAR[node.risk] || "--card-border") + ")");
     }
 
-    // Minimized diffs start life as a compact file chip (status badge, path,
-    // ±stats); clicking the chip expands it into the full diff card, and the
-    // card's chevron folds it back into a chip
-    if (node.type === "diff" && node.minimized) {
+    // Minimized diffs/code start life as a compact file chip (status badge,
+    // path, ±stats); clicking the chip expands it into the full card, and the
+    // card's chevron folds it back into a chip. On a whiteboard-style map the
+    // chips are the code docked behind the step they illuminate.
+    if ((node.type === "diff" || node.type === "excerpt" || node.type === "code") && node.minimized) {
       el.classList.add("rv-min");
       el.dataset.min = "1"; // identity survives expansion, for the hide toggle
       el.title = "Click to expand";
       const rowEl = document.createElement("div");
       rowEl.className = "rv-filerow";
-      const meta = STATUS_META[node.status || "modified"];
-      const badge = document.createElement("span");
-      badge.className = "rv-status";
-      badge.textContent = meta[0];
-      badge.style.background = "var(" + meta[1] + ")";
-      rowEl.appendChild(badge);
+      if (node.type === "diff" || node.status) {
+        const meta = STATUS_META[node.status || "modified"];
+        const badge = document.createElement("span");
+        badge.className = "rv-status";
+        badge.textContent = meta[0];
+        badge.style.background = "var(" + meta[1] + ")";
+        rowEl.appendChild(badge);
+      }
       const path = document.createElement("a");
       path.className = "rv-path";
       path.target = "_blank";
       path.rel = "noopener";
-      path.textContent = node.file || node.title || "diff";
+      path.textContent = (node.file || node.title || node.type) +
+        (node.type !== "diff" && node.line ? ":" + node.line : "");
       if (node.file) path.dataset.path = node.file;
       applyHref(path, node);
       rowEl.appendChild(path);
@@ -1874,13 +1882,6 @@
       el.appendChild(t);
     }
     el.appendChild(renderMarkdown(node.content));
-    const slides = nodes.filter((n) => n.type === "slide");
-    if (slides.length > 1) {
-      const num = document.createElement("div");
-      num.className = "rv-slide-num";
-      num.textContent = (slides.indexOf(node) + 1) + " / " + slides.length;
-      el.appendChild(num);
-    }
     const cp = document.createElement("button");
     cp.className = "rv-copy";
     cp.title = "Copy content";
@@ -2053,14 +2054,40 @@
     return { ids, size, links };
   }
 
-  // The layout button / R toggles between the two layered directions; each
-  // writes `pos` for every visible node. Layered → is the default: the canvas
-  // reads left-to-right from entry points.
+  // Explain-mode default: a slide-sorter grid in manifest (= tour) order.
+  // Tours are mostly edge-less, so topology says nothing about placement —
+  // reading order does. Rows wrap at a width that keeps the canvas ~16:9.
+  function layoutReading() {
+    const { ids, size } = measureVisible();
+    const GAP = 64;
+    let area = 0, widest = 0;
+    ids.forEach((id) => {
+      area += (size[id].w + GAP) * (size[id].h + GAP);
+      widest = Math.max(widest, size[id].w);
+    });
+    const rowW = Math.max(widest, Math.sqrt(area * 1.9));
+    let x = 0, y = 0, rowH = 0;
+    ids.forEach((id) => {
+      const { w, h } = size[id];
+      if (x > 0 && x + w > rowW) { x = 0; y += rowH + GAP; rowH = 0; }
+      pos[id] = { x: x, y: y };
+      x += w + GAP;
+      rowH = Math.max(rowH, h);
+    });
+  }
+
+  // The layout button / R cycles layouts; each writes `pos` for every visible
+  // node. Review mode defaults to layered → (the canvas reads left-to-right
+  // from entry points). Explain mode is whiteboard-aware: a tour with a shape
+  // map lays out by the map's topology; an edge-less card tour reads in
+  // manifest order.
   const LAYOUTS = [
     { name: "Layered →", fn: () => layoutLayered(true) },
     { name: "Layered ↓", fn: () => layoutLayered(false) },
   ];
-  let layoutIdx = 0;
+  if (M.reading) LAYOUTS.push({ name: "Reading order", fn: layoutReading });
+  let layoutIdx =
+    M.reading && !nodes.some((n) => n.type === "shape") ? LAYOUTS.length - 1 : 0;
 
   function computeLayout() {
     LAYOUTS[layoutIdx].fn();
@@ -2764,7 +2791,11 @@
     item.appendChild(icon(TYPE_ICON[node.type] || "lu-file", "ri-icon"));
     const t = document.createElement("span");
     t.className = "ri-title";
-    t.textContent = node.title || node.file || node.type;
+    // Prefer an authored title; a bare file falls back to basename:line — a
+    // rail of full repo paths says nothing when several chips share a file
+    const base = node.file
+      ? node.file.split("/").pop() + (node.line ? ":" + node.line : "") : null;
+    t.textContent = node.title || base || node.type;
     item.appendChild(t);
     const risk = riskOf(node);
     if (node.type === "warning") {
@@ -2998,9 +3029,9 @@
   }
 
   $("mv-install").addEventListener("click", () =>
-    copyText("npx skills add abrinsmead/skills/visual-code-reviewer", "Install command copied"));
+    copyText("npx skills add abrinsmead/skills/explain-this", "Install command copied"));
   $("mv-update").addEventListener("click", () =>
-    copyText("npx skills update visual-code-reviewer", "Update command copied"));
+    copyText("npx skills update explain-this", "Update command copied"));
   $("mv-hide").addEventListener("click", () => {
     $("mv-watermark").style.display = "none";
   });
