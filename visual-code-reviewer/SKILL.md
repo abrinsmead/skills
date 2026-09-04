@@ -17,23 +17,45 @@ Read enough surrounding source to actually review the change — risky spots, da
 
 ## 2. Choose the artifacts (nodes)
 
-**The unit of review is the semantic changeset, not the file.** Decompose the diff into the distinct things it does — "extracted retry logic into a helper" (behavioral), "renamed `userId` across 47 sites" (mechanical), "regenerated lockfile" (generated) — one `changeset` node each, spanning however many files it touches. This decomposition IS the review: you did it by reading the code; the canvas renders it. A hunk that fits no changeset is scope creep — say so.
+**The canvas is a map, not the review.** Your written reply carries the argument — findings, reasoning, verdict, everything that needs sentences. The canvas carries what sentences are bad at: what changed, how the pieces connect, what shape the change has. Keep the two separate and both get better. Merge them and you get an essay in boxes, which charges the reader canvas navigation *on top of* reading and returns the benefit of neither.
 
-| Node | Role |
-|---|---|
-| One `markdown` summary card, first in the manifest | What the change claims to do, whether the changesets support that claim, your verdict. For large or presentation-worthy reviews, lead with a title `slide` and close with a verdict `slide` instead |
-| One `changeset` node per semantic unit (usually 2–8) | `kind`: `behavioral` / `mechanical` / `generated` / `test` / `docs` / `config`. `risk`: `high` / `medium` / `low` — behavioral changes to shared state, concurrency, auth, or migrations are high; mechanical sweeps are low even when huge. `note`: what this changeset does and why the reviewer should trust it. `slices`: the hunks that prove it (each `{file, line, content}` — copy the hunk(s) with `@@` lines, a few context lines, under ~40 lines per slice; mechanical/generated changesets often need one representative slice or none) |
-| `warning` nodes (P0/P1/P2) | Every finding, edge-linked to the changeset it concerns |
-| 3–8 `shape` nodes — only when the change alters a runtime flow | Entry points (`start`), steps (`process`), branches (`decision`), artifacts read/written (`io`), completion (`end`) — with changesets edge-linked to the steps they alter |
-| `mermaid` — before/after pairs | When the change alters something with formal shape, render **both** states: two `erDiagram`s ("was" / "becomes") for a migration, two state machines for a lifecycle change, a `sequenceDiagram` for a new cross-service flow. Edge-link the pair with "was" → "becomes" |
-| Appendix: `diff` chips (all `minimized: true`) or one `files` tray | Every changed file's **complete diff**, one click away (`git diff -U999999 <base>...HEAD -- <file>`, `-U20` for files over ~1000 lines). Chips when files dock naturally onto shapes/changesets; the tray when they don't |
+Apply this test before you build: **at fit zoom, the canvas must convey the shape of the change without reading any body text.** Titles, badges, colors, position and edges do that work; body text is evidence consulted *after* the map has oriented you. If a card is meaningless until you zoom in and read it, the map failed — cut words, not cards.
 
-Rules of composition:
-- **Manifest order is the narrative** — the rail presents it top to bottom: summary, changesets (highest risk first), warnings near their changeset, appendix last.
-- Every `warning` edge-links to the changeset (or slice's chip) it concerns; every chip edge-links to the changeset or step it belongs to.
+**The unit of the map is the semantic changeset, not the file.** Decompose the diff into the distinct things it does — "extracted retry logic into a helper" (behavioral), "renamed `userId` across 47 sites" (mechanical), "regenerated lockfile" (generated) — one `changeset` node each, spanning however many files it touches. This decomposition IS the review: you did it by reading the code; the canvas renders it. A hunk that fits no changeset is scope creep — say so in your reply.
+
+| Node | Role | Budget |
+|---|---|---|
+| One `changeset` per semantic unit (2–8) | `kind`: `behavioral` / `mechanical` / `generated` / `test` / `docs` / `config`. `risk`: `high` / `medium` / `low` — behavioral changes to shared state, concurrency, auth, or migrations are high; mechanical sweeps are low even when huge. `note`: **one claim** — the thing a reviewer must believe to trust this changeset. `slices`: the hunks that prove it (`{file, line, content}` with `@@` lines, under ~40 lines each) | `note` ≤ **25 words** |
+| `warning` — only findings that change the merge decision | The claim and the fix, with `file` / `line`. The *argument* for it goes in your reply, not on the card | `content` ≤ **40 words** |
+| `mermaid` — the flow, and before/after pairs | One flowchart when a runtime flow changed. When the change alters something with formal shape, render **both** states: two `erDiagram`s for a migration, two state machines for a lifecycle change. Edge-link the pair "was" → "becomes" | diagram only |
+| Appendix: one `files` tray, or `diff` chips (`minimized: true`) | Every changed file's complete diff, one click away (`git diff -U999999 <base>...HEAD -- <file>`; `-U20` for files over ~1000 lines) | — |
+| Optional: a title `slide` and a verdict `slide` | Only for large or presentation-worthy reviews | ≤ **40 words** each |
+
+**Whole canvas: ≤ 300 visible words, 10–14 nodes.** Prose is what makes these canvases unreadable and it is never what makes them useful.
+
+**Do not use `shape` nodes in review mode.** A chain of flowchart chips mixed among prose cards reads as neither one thing nor the other, and shapes are excluded from the explorer rail, so they cannot participate in the reading order at all. Use a single `mermaid` flowchart instead. (Shapes remain available in explain mode.)
+
+**Composition**
+- **Manifest order is the narrative** — the rail presents it top to bottom: changesets (highest risk first), each warning immediately after the changeset it concerns, appendix last.
 - Label nearly every edge with an **active verb naming the real relationship**: "implements", "proves", "tested by", "was/becomes", "finding". An unlabeled edge is the exception.
 - Set the manifest `title` to a one-line description of the change (not "PR #482"), and `url` to the PR link when there is one — the title pill becomes a link.
-- The viewer tracks reviewer attention: nodes with `risk` (and warnings) count toward the coverage meter, `j`/`k` walks them by descending risk. Set `risk` honestly — it allocates the reviewer's attention.
+- Set `risk` honestly: it drives the coverage meter and the `j`/`k` walk order, so it is how you allocate the reviewer's attention.
+
+**Omission** — a map earns its clarity by leaving things out.
+- Skip findings the author already acknowledged in a code comment, a `TODO`, or the PR description.
+- No praise, no filler. A changeset that is simply fine needs a title and a `kind` badge, not a paragraph.
+- Never restate in a `note` what its own slice already shows. The slice *is* the evidence.
+- Mechanical and generated changesets: one representative slice, or none.
+- Fold P2 findings into a single card, or leave them to your reply entirely.
+- If a `markdown` card would only resummarize what your reply already says, drop it. At most one, ≤ 80 words.
+
+**Layout** — the auto-layout is driven purely by edge topology, so these are correctness rules, not style preferences:
+- **One connected component.** Disconnected subgraphs are stacked vertically, producing a tall, mostly-empty canvas.
+- **Every node needs at least one edge.** Orphans are exiled to a grid below everything else, far from whatever they annotate.
+- **Keep a node's incoming edges within 1–2 ranks of each other.** There are no virtual nodes for long edges, so an edge spanning 3+ ranks gets zero crossing optimization and is drawn straight through whatever sits between.
+- **Avoid back edges** (pointing to a node earlier in the manifest). They are still drawn but ignored for ranking, so they fly backward across the whole canvas.
+- **≤ 4–5 nodes per rank.** A rank is as wide as its widest card, so mixing a 720px `diff` with 380px `warning`s wastes ~340px on every short card in that rank.
+- `mermaid` cards have **no width or height cap** — keep the diagram small or it will dominate the canvas.
 
 ## 2b. Explain mode — a tour of existing code
 
@@ -64,11 +86,11 @@ Write JSON to `.review/<descriptive_name>.json` in the current working directory
         { "file": "src/limiter.ts", "line": 24,
           "content": "@@ -20,6 +20,12 @@\n context line\n+  const tokens = await redis.get(key);\n+  if (tokens >= 1) await redis.decr(key);" }
       ] },
-    { "id": "cs_tests", "type": "changeset", "title": "Limiter unit tests", "kind": "test", "risk": "low",
-      "note": "Covers acquire/refill; **no concurrency test** — consistent with the race below going uncaught." },
     { "id": "w_race", "type": "warning", "severity": "P0", "title": "Race on bucket refill",
       "file": "src/limiter.ts", "line": 24,
       "content": "Two concurrent requests can both pass the check. Use a **Lua script** so the decrement is atomic." },
+    { "id": "cs_tests", "type": "changeset", "title": "Limiter unit tests", "kind": "test", "risk": "low",
+      "note": "Covers acquire/refill; **no concurrency test** — consistent with the race above going uncaught." },
     { "id": "d_limiter", "type": "diff", "file": "src/limiter.ts", "minimized": true,
       "status": "added", "additions": 120, "deletions": 0,
       "content": "--- a/src/limiter.ts\n+++ b/src/limiter.ts\n@@ -0,0 +1,120 @@\n+..." },
@@ -80,8 +102,8 @@ Write JSON to `.review/<descriptive_name>.json` in the current working directory
     { "from": "summary", "to": "cs_limiter", "label": "core change" },
     { "from": "cs_limiter", "to": "w_race", "label": "finding", "style": "dashed" },
     { "from": "cs_limiter", "to": "cs_tests", "label": "tested by", "style": "dashed" },
-    { "from": "d_limiter", "to": "cs_limiter", "label": "full diff", "style": "dashed" },
-    { "from": "d_tests", "to": "cs_tests", "label": "full diff", "style": "dashed" }
+    { "from": "cs_limiter", "to": "d_limiter", "label": "full diff", "style": "dashed" },
+    { "from": "cs_tests", "to": "d_tests", "label": "full diff", "style": "dashed" }
   ]
 }
 ```
@@ -89,7 +111,7 @@ Write JSON to `.review/<descriptive_name>.json` in the current working directory
 Schema:
 
 - Top-level: `title` (string), optional `url` (PR or repo link), optional `mode` (`"review"` default, or `"explain"`), `nodes` (non-empty array), `edges` (array, optional).
-- Every node: unique `id` of `[a-zA-Z0-9_-]+`, a `type`, optional `title`, optional `width` (px, overrides the type default — diffs 720, excerpts/code 560, files tray 520, markdown 440, warning 380, image 480).
+- Every node: unique `id` of `[a-zA-Z0-9_-]+`, a `type`, optional `title`, optional `width` (px, overrides the type default — diffs 720, changesets 620, excerpts/code 560, files tray 520, markdown 440, warning 380, image 480). Note a `warning` defaults *narrower* than a `changeset`, so a P0 renders physically smaller than a mechanical changeset; set `width: 620` on high-severity warnings when you want the visual weight to match the severity.
 - `mermaid` — `content` is mermaid source (rules below).
 - `changeset` — a semantic unit of change. Optional `kind` (`behavioral`/`mechanical`/`generated`/`test`/`docs`/`config`, shown as a badge), optional `risk` (`high`/`medium`/`low`, sets the accent color and drives the attention meter and `j`/`k` walk order), `note` (markdown), `slices` (array of `{ file?, line?, content }` diff slices rendered with per-slice file headers). Needs `note`, `slices`, or both.
 - Any node may carry `risk` — it marks the node as a review target for the coverage meter — and `group` (string), a named explorer section.
@@ -103,7 +125,7 @@ Schema:
 - `markdown` — `content` supports `#`–`###` headings, `**bold**`, `*italic*`, `` `code` ``, fenced code blocks, `-`/`1.` lists, and `[text](https://...)` links.
 - `code` — `content` rendered verbatim in monospace; optional `file`.
 - `warning` — required `severity` `"P0"|"P1"|"P2"` (P0 red = must fix, P1 orange = should fix, P2 yellow = nice to fix); `content` is markdown; optional `file` and `line`.
-- `shape` — required `shape` (`start`, `end`, `process`, `decision`, `io`) and `label`; optional `color` from the palette names below.
+- `shape` — **explain mode only** (see the review-mode rule above). Required `shape` (`start`, `end`, `process`, `decision`, `io`) and `label`; optional `color` from the palette names below.
 - `image` — required `src`: a local file path (resolved relative to the manifest and inlined as a data URI at build time) or an existing `data:` URI; optional `alt`.
 - Any node: optional `href` (http/https) — makes the header file reference a link.
 - Edges: `from`/`to` node ids, optional `label`, optional `style` (`"solid"` default or `"dashed"` — use dashed for findings and secondary relationships).
@@ -148,6 +170,8 @@ node <this-skill-directory>/scripts/build-review.mjs .review/<descriptive_name>.
 
 The script validates the manifest (clear error messages on bad ids, types, severities, or dangling edges — fix the JSON and rerun), inlines any image files, and prints the absolute path of the generated HTML (`<name>-<timestamp>.html`). Options: `--title` overrides the displayed title (defaults to `manifest.title`), `--out <dir>`, `--artifact` (see below).
 
+It also prints a **budget report** to stderr — visible word count, node count, over-cap prose fields, and layout-topology problems (back edges, long-span edges, orphans, disconnected components). These are warnings, not errors: the canvas still builds. **Treat them as a rebuild trigger, not as noise** — a canvas that overran its word budget is the exact failure this skill is prone to, so tighten the manifest and rerun before handing it over.
+
 **Never Read the generated .html files or the skill's assets/mermaid.min.js — each contains a 2.6 MB inlined library.** The `.json` manifest is the editable source of truth.
 
 If the opened page shows a "Diagram error" strip inside a mermaid card, fix that node's `content` per the rules above and rerun the script.
@@ -167,3 +191,18 @@ The emitted `<name>.artifact.html` is body-content-only (no DOCTYPE/head/body �
 ## 7. Iterate
 
 To revise, edit the `.json` manifest and rerun the build script. Never hand-edit generated HTML. Old timestamped HTML files in `.review/` serve as history; it's fine to leave them.
+
+## Format rules (review mode)
+
+Restated because this is the failure mode: a canvas can satisfy every node-count rule above and still be unreadable, because the prose inside the nodes has no natural limit.
+
+- `changeset.note` ≤ **25 words** — one claim, never a restatement of its own slice.
+- `warning.content` ≤ **40 words** — the claim and the fix; the argument belongs in your reply.
+- `markdown` ≤ **80 words**, at most one card, usually zero.
+- `slide` ≤ **40 words**.
+- **Whole canvas ≤ 300 visible words, 10–14 nodes.**
+- No `shape` nodes. One `mermaid` flowchart carries a runtime flow.
+- One connected component; every node edged; no back edges; no edge spanning 3+ ranks.
+- The build script prints a budget report. **If it warns, fix the manifest and rebuild** — do not hand the user a canvas that overran its budget.
+
+The test that governs all of them: at fit zoom, the canvas conveys the shape of the change without reading any body text. If it doesn't, cut words — not cards.
