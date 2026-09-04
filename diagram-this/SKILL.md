@@ -65,29 +65,29 @@ classDef violet fill:#a78bfa,stroke:#8b5cf6,color:#fff
 classDef peach fill:#ffc9c9,stroke:#ffa8a8,color:#000
 ```
 
-## 2. Build the HTML
+## 2. Build the HTML and open it
 
 Write the source to `.diagrams/<descriptive_name>.mmd` in the current working directory (create the directory if needed) — the `.mmd` filename becomes the output filename, so name it after what the diagram shows. Then run the build script that ships with this skill (`scripts/build-diagram.mjs`, resolved relative to the directory containing this SKILL.md):
 
 ```
-node <this-skill-directory>/scripts/build-diagram.mjs .diagrams/<descriptive_name>.mmd --title "Short Title"
+node <this-skill-directory>/scripts/build-diagram.mjs .diagrams/<descriptive_name>.mmd --title "Short Title" --open
 ```
 
-The script prints the absolute path of the generated HTML file (`<descriptive_name>-<timestamp>.html`). `--title` sets the displayed title only and defaults to the filename with underscores as spaces; other options: `--out <dir>` to change the output directory, `--artifact` for artifact mode (see below).
+`--open` builds AND opens the result in the default browser in one step — use it by default, and write the `.mmd` in the same command (a heredoc) so the whole diagram costs one tool call. The script prints the absolute path of the generated HTML file (`<descriptive_name>-<timestamp>.html`). `--title` sets the displayed title only and defaults to the filename with underscores as spaces; other options: `--out <dir>` to change the output directory, `--artifact` for artifact mode (see below).
 
 **Never Read the generated .html files or the skill's assets/mermaid.min.js — each contains a 2.6 MB inlined library.** The `.mmd` file is the editable source of truth.
 
 If the diagram fails to render (the opened page shows a "Diagram error" message), fix the `.mmd` source per the rules above and rerun the script.
 
-## 3. Open it
+## 3. The viewer
 
-Open the printed path in the default browser: `open <path>` on macOS, `xdg-open <path>` on Linux, `start "" <path>` on Windows. In environments without a browser (headless/remote), send or attach the file instead. The viewer has pan (drag), zoom (wheel, +/− buttons), fit (`f`), theme toggle (`d`, follows system by default), PNG/SVG download, and a source panel (`s`) with copy.
+Omit `--open` only when there is no browser to open (headless/remote) — send or attach the file instead — or when you deliberately want to open it yourself (`open <path>` on macOS, `xdg-open <path>` on Linux, `start "" <path>` on Windows). The viewer has pan (drag), zoom (wheel, +/− buttons), fit (`f`), theme toggle (`d`, follows system by default), PNG/SVG download, and a source panel (`s`) with copy.
 
 ## 4. Artifact mode
 
-The DEFAULT output is the local HTML file opened in the browser (step 3). Build with `--artifact` ONLY when (a) the user explicitly asks for an artifact or a shareable link, or (b) there is no local browser to open (headless or remote session) — in that case say why you chose an artifact. Do not ask the user which mode they want; use the default.
+The DEFAULT output is the local HTML file opened in the browser (step 2). Build with `--artifact` ONLY when (a) the user explicitly asks for an artifact or a shareable link, or (b) there is no local browser to open (headless or remote session) — in that case say why you chose an artifact. Do not ask the user which mode they want; use the default.
 
-The emitted `<slug>.artifact.html` is body-content-only (no DOCTYPE/head/body — the artifact host supplies its skeleton) and makes zero network requests, satisfying the artifact CSP. Pass the file to the Artifact tool by path; never pull its contents into context.
+`--open` is ignored in artifact mode. The emitted `<slug>.artifact.html` is body-content-only (no DOCTYPE/head/body — the artifact host supplies its skeleton) and makes zero network requests, satisfying the artifact CSP. Pass the file to the Artifact tool by path; never pull its contents into context.
 
 ## 5. Iterate
 
