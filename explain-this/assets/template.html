@@ -37,6 +37,11 @@
     --code-bg: #f5f5f5;                   /* neutral-100 */
     --link: #2563eb;
     --mm-node: #d4d4d4;                   /* neutral-300 */
+    /* Flowchart shapes, Whimsical-style: light tinted fill, colored border, dark text */
+    --shape-start-bg: #d3f9d8;  --shape-start-border: #40c057;  --shape-start-fg: #2b8a3e;
+    --shape-end-bg: #ffe3e3;    --shape-end-border: #fa5252;    --shape-end-fg: #c92a2a;
+    --shape-dec-bg: #fff3bf;    --shape-dec-border: #fab005;    --shape-dec-fg: #b0730f;
+    --shape-node-bg: #dbe4ff;   --shape-node-border: #4c6ef5;   --shape-node-fg: #364fc7;
   }
   [data-theme="dark"] {
     --bg: #262626;                        /* neutral-800 */
@@ -75,6 +80,12 @@
     --code-bg: #262626;                   /* neutral-800 */
     --link: #60a5fa;
     --mm-node: #525252;                   /* neutral-600 */
+    /* Muted in the dark theme: solid dark tints, mid-saturation borders,
+       neutral text — the hue lives in the border, not a glow */
+    --shape-start-bg: #14291a;  --shape-start-border: #2f9e44;  --shape-start-fg: #e5e5e5;
+    --shape-end-bg: #2e1516;    --shape-end-border: #e03131;    --shape-end-fg: #e5e5e5;
+    --shape-dec-bg: #2b2113;    --shape-dec-border: #f08c00;    --shape-dec-fg: #e5e5e5;
+    --shape-node-bg: #171d33;   --shape-node-border: #4263eb;   --shape-node-fg: #e5e5e5;
   }
   #mv-app, #mv-app * { box-sizing: border-box; }
   #mv-app {
@@ -171,11 +182,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* The file ref yields to the title: it shrinks 4x faster and ellipsizes
-     from the left so the filename:line tail stays visible */
+  /* The file ref yields to the title: it shrinks 4x faster, never takes more
+     than 40% of the header, and ellipsizes from the left so the filename:line
+     tail stays visible. The title keeps the majority and carries a hover
+     tooltip with its full text. */
   .rv-head .rv-file {
     flex: 0 4 auto;
     min-width: 0;
+    max-width: 40%;
     margin-left: auto;
     padding-left: 12px;
     color: var(--panel-dim);
@@ -297,9 +311,18 @@
   .rv-md + .rv-slice-head, .rv-diff + .rv-slice-head { margin-top: 0; }
 
   /* Selection ring: rail and canvas share one selection */
-  .rv-node.selected, .rv-shape.selected {
+  .rv-node.selected, .rv-shape.selected, .rv-slide.selected {
     outline: 2px solid var(--icon-hover-fg);
     outline-offset: 2px;
+  }
+  /* Landing pulse: a rail click or walk step flashes the target's outline so
+     the eye finds it after the fly-to */
+  @keyframes rv-flash {
+    0%   { box-shadow: 0 0 0 3px var(--icon-hover-fg); }
+    100% { box-shadow: 0 0 0 18px rgba(0, 0, 0, 0); }
+  }
+  .rv-node.flash, .rv-shape.flash, .rv-slide.flash {
+    animation: rv-flash 0.55s ease-out 2;
   }
 
   /* Word-level intra-line diff emphasis */
@@ -403,8 +426,8 @@
     border-bottom-color: var(--icon-hover-fg);
     font-weight: 500;
   }
-  #rv-files-list { overflow: auto; flex: 1; padding: 6px; }
-  #rv-files-list[hidden] { display: none; }
+  #rv-files-list, #rv-findings-list { overflow: auto; flex: 1; padding: 6px; }
+  #rv-files-list[hidden], #rv-findings-list[hidden] { display: none; }
   #rv-files-list .ri-path {
     flex: 1;
     overflow: hidden;
@@ -654,32 +677,53 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 22px;
-    font-weight: 500;
+    padding: 13px 26px;
+    min-height: 48px;
+    /* max-content, not shrink-to-fit: an abs-pos box in a zero-width canvas
+       otherwise collapses to its longest word (one word per line) */
+    width: max-content;
+    max-width: 320px;
+    font-weight: 600;
+    line-height: 1.35;
     text-align: center;
-    white-space: nowrap;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
-    background: var(--card-bg);
-    border: 1.5px solid var(--card-border);
+    background: var(--shape-node-bg);
+    border: 2px solid var(--shape-node-border);
+    color: var(--shape-node-fg);
     box-shadow: var(--card-shadow);
-    color: var(--panel-fg);
   }
-  .rv-shape[data-shape="process"] { border-radius: 6px; }
+  .rv-shape[data-shape="process"] { border-radius: 8px; }
   .rv-shape[data-shape="start"], .rv-shape[data-shape="end"] { border-radius: 999px; }
-  .rv-shape[data-shape="end"] { border-width: 3px; }
+  .rv-shape[data-shape="start"] {
+    background: var(--shape-start-bg);
+    border-color: var(--shape-start-border);
+    color: var(--shape-start-fg);
+  }
+  .rv-shape[data-shape="end"] {
+    background: var(--shape-end-bg);
+    border-color: var(--shape-end-border);
+    color: var(--shape-end-fg);
+  }
   .rv-shape[data-shape="decision"], .rv-shape[data-shape="io"] {
     background: transparent;
     border: none;
     box-shadow: none;
     padding: 0;
+    min-height: 0;
   }
+  .rv-shape[data-shape="decision"] { color: var(--shape-dec-fg); }
+  .rv-shape[data-shape="io"] { color: var(--shape-node-fg); }
   .rv-shape .rv-shape-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .rv-shape .rv-shape-svg polygon {
-    fill: var(--card-bg);
-    stroke: var(--card-border);
-    stroke-width: 1.5;
+  .rv-shape .rv-shape-svg polygon { stroke-width: 2; }
+  .rv-shape[data-shape="decision"] .rv-shape-svg polygon {
+    fill: var(--shape-dec-bg);
+    stroke: var(--shape-dec-border);
+  }
+  .rv-shape[data-shape="io"] .rv-shape-svg polygon {
+    fill: var(--shape-node-bg);
+    stroke: var(--shape-node-border);
   }
   .rv-shape .rv-shape-label { position: relative; padding: 10px 16px; }
 
@@ -1055,10 +1099,12 @@
     </div>
     <div id="rv-rail-tabs">
       <div class="rv-tab active" data-tab="review">Review</div>
+      <div class="rv-tab" data-tab="findings">Findings</div>
       <div class="rv-tab" data-tab="files">Files</div>
     </div>
     <div id="rv-attention"></div>
     <div id="rv-rail-list"></div>
+    <div id="rv-findings-list" hidden></div>
     <div id="rv-files-list" hidden></div>
   </div>
   <div id="rv-hotzone"></div>
@@ -1181,8 +1227,8 @@
   // Mode vocabulary: review = triage a diff; explain = tour existing code.
   // Everything mode-dependent reads M.* — no scattered mode branches.
   const MODES = {
-    review:  { tab: "Review", meterVerb: "reviewed", groups: "risk",  allTargets: false, sourceTray: false, reading: false },
-    explain: { tab: "Tour",   meterVerb: "visited",  groups: "flat",  allTargets: true,  sourceTray: true,  reading: true },
+    review:  { tab: "Explainer", meterVerb: "reviewed", allTargets: false, sourceTray: false, reading: false, filesTab: true },
+    explain: { tab: "Tour",      meterVerb: "visited",  allTargets: true,  sourceTray: true,  reading: true,  filesTab: false },
   };
   const M = MODES[MANIFEST.mode] || MODES.review;
 
@@ -1527,6 +1573,10 @@
   }
   const nodeEls = {};  // id -> element
   const pos = {};      // id -> {x, y}; written by layout, then owned by drag
+  // Files-tab rows open the exact thing they name: a chip's id expands the
+  // chip; "id file" (ids cannot contain spaces) opens that file's row inside
+  // a files tray
+  const fileOpeners = {};
 
   // File references link out: an explicit safe `href` wins; otherwise, when the
   // manifest url is a GitHub PR, anchors carrying a repo-relative path (it must
@@ -1715,6 +1765,12 @@
         computeLayout();
         redrawEdges();
       });
+      fileOpeners[node.id] = () => {
+        if (!el.classList.contains("rv-min")) return;
+        el.classList.remove("rv-min");
+        computeLayout();
+        redrawEdges();
+      };
     }
 
     if (node.type === "files" && !node.title) {
@@ -1791,18 +1847,25 @@
         // Diff DOM is built on first expand: a tray holds the whole PR, and
         // rendering thousands of rows nobody may open would slow boot
         let rendered = false;
-        row.addEventListener("click", (e) => {
-          if (e.target.closest("a[href]")) return; // path link navigates
-          if (!rendered) {
+        const setOpen = (open) => {
+          if (open && !rendered) {
             diffWrap.appendChild(M.sourceTray ? renderSource(entry.content, 1) : renderDiff(entry.content));
             rendered = true;
           }
-          diffWrap.hidden = !diffWrap.hidden;
-          row.classList.toggle("open", !diffWrap.hidden);
+          diffWrap.hidden = !open;
+          row.classList.toggle("open", open);
           // Widen the tray to diff width while any row is open
           el.classList.toggle("rv-open", !!body.querySelector(".rv-ftray-diff:not([hidden])"));
           redrawEdges();
+        };
+        row.addEventListener("click", (e) => {
+          if (e.target.closest("a[href]")) return; // path link navigates
+          setOpen(diffWrap.hidden);
         });
+        fileOpeners[node.id + " " + entry.file] = () => {
+          setOpen(true);
+          row.scrollIntoView({ block: "nearest" });
+        };
         body.appendChild(row);
         body.appendChild(diffWrap);
       }
@@ -1896,6 +1959,9 @@
     return el;
   }
 
+  // Flowchart color language lives in CSS: green start pill, red end pill,
+  // yellow decision, blue everything else — tinted fill, colored border, tinted
+  // text, per theme. An authored `color` overrides with a full-saturation fill.
   function buildShape(node) {
     const el = document.createElement("div");
     el.className = "rv-shape";
@@ -1917,8 +1983,8 @@
       const label = document.createElement("span");
       label.className = "rv-shape-label";
       label.textContent = node.label;
-      if (node.shape === "decision") label.style.padding = "22px 34px";
-      else label.style.padding = "10px 34px";
+      if (node.shape === "decision") label.style.padding = "30px 44px";
+      else label.style.padding = "16px 40px";
       if (colors) label.style.color = colors[2];
       el.appendChild(label);
       // Polygon points depend on the measured size; set after attach
@@ -2692,8 +2758,9 @@
 
   // Review targets and their priority. Warnings inherit severity; anything
   // can carry an explicit `risk`; changesets/excerpts default medium, code
-  // carriers default low; markdown/shape/mermaid/image are context, not
-  // review obligations.
+  // carriers default low. Every non-shape node is a target — a card worth
+  // putting on the canvas is worth a read checkmark; only shapes are map
+  // furniture.
   const riskOf = (node) => {
     if (!node || node.type === "shape") return null;
     if (node.type === "warning") return node.severity === "P2" ? "medium" : "high";
@@ -2701,14 +2768,11 @@
     if (node.type === "callout" || node.type === "slide") return "medium";
     if (M.allTargets) return "medium"; // explain mode: every stop on the tour counts
     if (node.type === "changeset" || node.type === "excerpt") return "medium";
-    if (node.type === "diff" || node.type === "files") return "low";
-    return null;
+    return "low";
   };
-  const RANK = { high: 0, medium: 1, low: 2 };
+  // The walk follows the narrative: manifest order, same as the rail
   const targets = nodes.filter((n) => riskOf(n) !== null);
-  const walkOrder = targets.slice()
-    .sort((a, b) => (RANK[riskOf(a)] - RANK[riskOf(b)]) || (idxOf[a.id] - idxOf[b.id]))
-    .map((n) => n.id);
+  const walkOrder = targets.map((n) => n.id);
 
   let sig = 0;
   const sigStr = nodes.map((n) => n.id).join("|");
@@ -2764,7 +2828,12 @@
     selectedId = id;
     document.querySelectorAll("#mv-content .selected").forEach((e) => e.classList.remove("selected"));
     const el = nodeEls[id];
-    if (el && el.offsetWidth) el.classList.add("selected");
+    if (el && el.offsetWidth) {
+      el.classList.add("selected");
+      el.classList.remove("flash");
+      void el.offsetWidth; // restart the pulse when re-selecting the same card
+      el.classList.add("flash");
+    }
     for (const k in railItems) railItems[k].classList.toggle("active", k === id);
     if (railItems[id]) railItems[id].scrollIntoView({ block: "nearest" });
     markRead(id);
@@ -2844,9 +2913,10 @@
     g.appendChild(c);
     railList.appendChild(g);
   }
-  // Section structure: author-declared `group` sections win in any mode
-  // (subsystem chapters); otherwise review mode groups by risk tier and
-  // explain mode stays flat in manifest (= tour) order.
+  // Section structure: author-declared `group` sections win (subsystem
+  // chapters); otherwise the rail is flat in manifest order — this is an
+  // explainer, so the rail is the narrative, not a triage queue. Severity
+  // triage lives in the Findings tab.
   const groupNames = [];
   nodes.forEach((n) => {
     if (n.type !== "shape" && typeof n.group === "string" && !groupNames.includes(n.group)) groupNames.push(n.group);
@@ -2858,25 +2928,17 @@
       railGroup(g, "--gutter-fg", members.length);
       members.forEach(railItem);
     }
-  } else if (M.groups === "risk") {
-    nodes.forEach((n) => {
-      if (n.type !== "shape" && riskOf(n) === null) railItem(n);
-    });
-    for (const tier of ["high", "medium", "low"]) {
-      const members = nodes.filter((n) => n.type !== "shape" && riskOf(n) === tier);
-      if (!members.length) continue;
-      railGroup(tier === "high" ? "High priority" : tier === "medium" ? "Medium priority" : "Low priority", RISK_VAR[tier], members.length);
-      members.forEach(railItem);
-    }
   } else {
     nodes.forEach((n) => { if (n.type !== "shape") railItem(n); });
   }
   document.querySelector('#rv-rail-tabs [data-tab="review"]').textContent = M.tab;
+  // A tour explains code as it stands — there is no changed-file list to browse
+  if (!M.filesTab) document.querySelector('#rv-rail-tabs [data-tab="files"]').style.display = "none";
   updateAttention();
 
   // Files tab: every changed file (standalone diff chips + files-tray rows)
   const filesList = $("rv-files-list");
-  function addFileRow(file, status, additions, deletions, targetId) {
+  function addFileRow(file, status, additions, deletions, targetId, openKey) {
     const item = document.createElement("div");
     item.className = "rv-rail-item";
     const meta = STATUS_META[status] || STATUS_META.modified;
@@ -2896,22 +2958,70 @@
       stats.textContent = "+" + (additions || 0) + " −" + (deletions || 0);
       item.appendChild(stats);
     }
-    item.addEventListener("click", () => setSelected(targetId, true));
+    item.addEventListener("click", () => {
+      // Open the exact file first (expand the chip / tray row), then fly —
+      // expansion relayouts, so the pan targets the post-expansion rect
+      const open = fileOpeners[openKey];
+      if (open) open();
+      setSelected(targetId, true);
+    });
     filesList.appendChild(item);
   }
-  nodes.forEach((n) => {
-    if (n.type === "diff") addFileRow(n.file || n.title || "diff", n.status || "modified", n.additions, n.deletions, n.id);
-    else if (n.type === "files") (n.files || []).forEach((f) => addFileRow(f.file, f.status || "modified", f.additions, f.deletions, n.id));
+  // Rows group under the component that holds them: one header per files
+  // tray (its title), with standalone chips leading under their own header.
+  // A flat chip-only manifest keeps the flat list.
+  const filesGroup = (label) => {
+    const g = document.createElement("div");
+    g.className = "rv-rail-group";
+    g.appendChild(document.createTextNode(label));
+    filesList.appendChild(g);
+  };
+  const chipNodes = nodes.filter((n) => n.type === "diff");
+  const trayNodes = nodes.filter((n) => n.type === "files");
+  if (chipNodes.length && trayNodes.length) filesGroup("Changed files");
+  chipNodes.forEach((n) =>
+    addFileRow(n.file || n.title || "diff", n.status || "modified", n.additions, n.deletions, n.id, n.id));
+  trayNodes.forEach((n) => {
+    filesGroup(n.title || "Changed files (" + (n.files || []).length + ")");
+    (n.files || []).forEach((f) =>
+      addFileRow(f.file, f.status || "modified", f.additions, f.deletions, n.id, n.id + " " + f.file));
   });
+
+  // Findings tab: severity-carrying callouts, most severe first — the triage
+  // view, kept out of the narrative rail
+  const findingsList = $("rv-findings-list");
+  const findings = nodes
+    .filter((n) => n.type === "warning")
+    .sort((a, b) => a.severity.localeCompare(b.severity) || (idxOf[a.id] - idxOf[b.id]));
+  findings.forEach((n) => {
+    const item = document.createElement("div");
+    item.className = "rv-rail-item";
+    const b = document.createElement("span");
+    b.className = "ri-badge";
+    b.textContent = n.severity;
+    b.style.background = "var(" + SEV_VAR[n.severity] + ")";
+    item.appendChild(b);
+    const t = document.createElement("span");
+    t.className = "ri-title";
+    t.textContent = n.title || n.file || "finding";
+    t.title = t.textContent;
+    item.appendChild(t);
+    item.addEventListener("click", () => setSelected(n.id, true));
+    findingsList.appendChild(item);
+  });
+  if (!findings.length) {
+    document.querySelector('#rv-rail-tabs [data-tab="findings"]').style.display = "none";
+  }
 
   const attention = $("rv-attention");
   document.querySelectorAll("#rv-rail-tabs .rv-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       document.querySelectorAll("#rv-rail-tabs .rv-tab").forEach((t) => t.classList.toggle("active", t === tab));
-      const files = tab.dataset.tab === "files";
-      railList.hidden = files;
-      attention.hidden = files;
-      filesList.hidden = !files;
+      const which = tab.dataset.tab;
+      railList.hidden = which !== "review";
+      attention.hidden = which !== "review";
+      findingsList.hidden = which !== "findings";
+      filesList.hidden = which !== "files";
     });
   });
 
@@ -2960,7 +3070,7 @@
   });
   applyRailState();
 
-  // j/k: walk review targets by descending priority, skipping hidden nodes
+  // j/k: walk the narrative in manifest order, skipping hidden nodes
   function walk(delta) {
     if (!walkOrder.length) return;
     let i = walkOrder.indexOf(selectedId);
