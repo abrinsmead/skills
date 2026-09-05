@@ -329,7 +329,7 @@
   <div id="mv-error" hidden></div>
   <div id="mv-toast"></div>
   <div id="mv-watermark">
-    <a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener">abrinsmead/skills/diagram-this v1.1</a>
+    <a href="https://github.com/abrinsmead/skills" target="_blank" rel="noopener">abrinsmead/skills/diagram-this v1.2</a>
     <span class="wm-sep">·</span>
     <span class="wm-link" id="mv-install" title="Copy install command">install</span>
     <span class="wm-sep">·</span>
@@ -401,19 +401,32 @@
     return prefix + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 11);
   }
 
-  // Crop the SVG viewBox to the bounding box of visible content (+20px pad)
+  // Crop the SVG viewBox to the bounding box of visible content (+20px pad).
+  // getBBox() is in each element's local space, so every box is mapped into
+  // the root SVG's space via the CTM — otherwise shapes drawn at negative
+  // offsets inside translated <g>s inflate the box with phantom whitespace.
   function trimSvgWhitespace(svgElement) {
-    const visible = svgElement.querySelectorAll("*:not(defs):not(style):not(title):not(desc)");
+    const rootCTM = svgElement.getScreenCTM();
+    if (!rootCTM) return;
+    const inv = rootCTM.inverse();
+    const visible = svgElement.querySelectorAll(
+      "rect, circle, ellipse, line, polyline, polygon, path, text, foreignObject, image");
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     visible.forEach((el) => {
       try {
+        if (el.closest("defs")) return;
+        const cs = getComputedStyle(el);
+        if (cs.visibility === "hidden" || cs.display === "none" || cs.opacity === "0") return;
         if (el instanceof SVGGraphicsElement && el.getBBox) {
           const b = el.getBBox();
-          if (b.width > 0 && b.height > 0) {
-            minX = Math.min(minX, b.x);
-            minY = Math.min(minY, b.y);
-            maxX = Math.max(maxX, b.x + b.width);
-            maxY = Math.max(maxY, b.y + b.height);
+          if (!(b.width > 0 && b.height > 0)) return;
+          const m = inv.multiply(el.getScreenCTM());
+          for (const [cx, cy] of [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]]) {
+            const p = new DOMPoint(cx, cy).matrixTransform(m);
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
           }
         }
       } catch (e) { /* some elements lack getBBox */ }
