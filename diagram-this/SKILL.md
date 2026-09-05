@@ -1,6 +1,8 @@
 ---
 name: diagram-this
 description: Render Mermaid diagrams into a self-contained interactive HTML viewer with pan/zoom, light/dark theme, PNG/SVG export, and source view. Use when the user asks to "diagram this", "visualize", "show the architecture", asks for a flowchart, swimlane, sequence diagram, state machine, ERD, mindmap, sankey, gantt, timeline, class diagram, or any other diagram, or provides Mermaid source to render.
+metadata:
+  version: "1.2"
 ---
 
 # Diagram This
@@ -28,20 +30,20 @@ Vendored mermaid is **11.16.0** — all of these are available and verified:
 
 Write valid Mermaid. CRITICAL RULES:
 
-1. The source MUST start with a diagram type from the table above.
+1. The source MUST start with a diagram type from the table above (use `flowchart`, not the older `graph` alias).
 2. Prefer left-to-right orientation (`flowchart LR`, `swimlane-beta LR`) — diagrams are viewed on landscape monitors. Use TD only when the flow is genuinely deep-and-narrow.
 3. Node IDs must be alphanumeric without spaces (use `A1`, `nodeA`, `start_node`).
-4. For node labels with special characters, wrap in quotes: `A["Label with spaces"]` or `A["Process (step 1)"]`.
-5. For quotes in labels use `&quot;`, for `<` use `&lt;`, for `>` use `&gt;`.
-6. For square brackets in labels use `A["Array&#91;0&#93;"]`.
-7. Always close all brackets and quotes. Avoid forward slashes in labels.
-8. Use consistent arrow styles (either `-->` or `->`).
+4. For node labels with special characters, wrap in quotes: `A["Label with spaces"]` or `A["Process (step 1)"]`. Inside a quoted label, parentheses, square brackets, and slashes are fine as-is: `A["Array[0] / path"]`.
+5. For quotes inside a label use `&quot;`, for `<` use `&lt;`, for `>` use `&gt;`: `C["List&lt;T&gt; is &quot;OK&quot;"]` (bare `<T>` is stripped as an HTML tag). Do NOT use `&#NN;` numeric entities — they render as literal `&` characters.
+6. Always close all brackets and quotes.
+7. Flowchart/swimlane links are `-->` (with `-->|label|` or `-.->`/`==>` variants); `->` is a parse error there. Sequence diagrams use `->>` / `-->>` (solid/dotted). Stay consistent within a diagram.
 
 Example:
 ```
-graph LR
+flowchart LR
   A["Complex Label"] --> B{Decision?}
   B -->|Yes| C["Result &quot;OK&quot;"]
+  B -->|No| D["items[0] / fallback"]
 ```
 
 For flowcharts and swimlanes, color key nodes using these classDefs, which work well in both light and dark mode (include the classDef lines you use, then apply with `class nodeId coral`). Other diagram types style themselves — skip the palette there:
@@ -67,13 +69,13 @@ classDef peach fill:#ffc9c9,stroke:#ffa8a8,color:#000
 
 ## 2. Build the HTML and open it
 
-Write the source to `.diagrams/<descriptive_name>.mmd` in the current working directory (create the directory if needed) — the `.mmd` filename becomes the output filename, so name it after what the diagram shows. Then run the build script that ships with this skill (`scripts/build-diagram.mjs`, resolved relative to the directory containing this SKILL.md):
+Write the source to `.diagrams/<descriptive_name>.mmd` in the current working directory (create the directory if needed) — the `.mmd` filename becomes the output filename, so name it after what the diagram shows. Generated HTML files are ~3.6 MB each, so if the working directory is a git repository and `.diagrams/` is not already ignored, add a `.diagrams/` line to its `.gitignore` in the same command. Then run the build script that ships with this skill (`scripts/build-diagram.mjs`, resolved relative to the directory containing this SKILL.md):
 
 ```
 node <this-skill-directory>/scripts/build-diagram.mjs .diagrams/<descriptive_name>.mmd --title "Short Title" --open
 ```
 
-`--open` builds AND opens the result in the default browser in one step — use it by default, and write the `.mmd` in the same command (a heredoc) so the whole diagram costs one tool call. The script prints the absolute path of the generated HTML file (`<descriptive_name>-<timestamp>.html`). `--title` sets the displayed title only and defaults to the filename with underscores as spaces; other options: `--out <dir>` to change the output directory, `--artifact` for artifact mode (see below).
+`--open` builds AND opens the result in the default browser in one step — use it by default, and write the `.mmd` in the same command (a heredoc) so the whole diagram costs one tool call. The script prints the absolute path of the generated HTML file (`<descriptive_name>-<timestamp>.html`, local time). `--title` sets the displayed title only and defaults to the filename with underscores and hyphens as spaces; other options: `--out <dir>` to change the output directory, `--artifact` for artifact mode (see below).
 
 **Never Read the generated .html files or the skill's assets/mermaid.min.js — each contains a 2.6 MB inlined library.** The `.mmd` file is the editable source of truth.
 

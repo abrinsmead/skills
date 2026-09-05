@@ -5,9 +5,11 @@
 //   node build-diagram.mjs <input.mmd> [--title "My Title"] [--out <dir>] [--artifact] [--open]
 //
 // The output filename is derived from the input .mmd basename; --title only
-// sets the displayed title (defaults to the basename with underscores as spaces).
+// sets the displayed title (defaults to the basename with underscores and
+// hyphens as spaces).
 //
-// Default output: <cwd>/.diagrams/<basename>-<timestamp>.html (full standalone page)
+// Default output: <cwd>/.diagrams/<basename>-<timestamp>.html (full standalone
+//                 page; timestamp is local time, YYYYMMDD-HHMMSS)
 // --artifact:     <out>/<slug>.artifact.html — body-content-only, no DOCTYPE/head,
 //                 for hosts (Claude artifacts) that supply their own HTML skeleton.
 //
@@ -35,12 +37,21 @@ let outDir = null;
 let artifact = false;
 let openAfter = false;
 
+// Value-taking flags refuse a following flag as their value, so
+// `--title --open` fails loudly instead of titling the diagram "--open".
+function flagValue(flag, i) {
+  const v = argv[i];
+  if (v === undefined || v.startsWith("--")) fail(`${flag} requires a value`);
+  return v;
+}
+
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
-  if (a === "--title") title = argv[++i];
-  else if (a === "--out") outDir = argv[++i];
+  if (a === "--title") title = flagValue(a, ++i);
+  else if (a === "--out") outDir = flagValue(a, ++i);
   else if (a === "--artifact") artifact = true;
   else if (a === "--open") openAfter = true;
+  else if (a.startsWith("--")) fail(`Unknown flag: ${a}`);
   else if (!input) input = a;
   else fail(`Unexpected argument: ${a}`);
 }
@@ -88,7 +99,10 @@ if (artifact) {
   const htmlEscape = (s) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   html = `<!DOCTYPE html>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${htmlEscape(title)}</title>\n${html}`;
-  const ts = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
+  // Local time, so the filename matches the clock the user is looking at
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  const ts = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
   outPath = join(dest, `${slug}-${ts}.html`);
 }
 
