@@ -31,6 +31,7 @@ Read enough surrounding source to actually review the change — risky spots, da
 
 Rules of composition:
 - **Manifest order is the narrative** — the rail presents it top to bottom: summary, changesets (highest risk first), findings near their changeset, appendix last.
+- **Give every node a `group`** — 3–6 short section names chosen for *this* change ("Orientation", "The move itself", "Guardrails", "Tests", "Full diffs"), not boilerplate. The explorer renders them as sections in first-appearance order: they are the explainer's table of contents. Put the core behavioral changeset's section right after orientation so a reader can find and follow the heart of the change first; park chips and trays in a closing section. A flat ungrouped rail is acceptable only below ~8 nodes.
 - Every finding edge-links to the changeset (or slice's chip) it concerns; every chip edge-links to the changeset or step it belongs to.
 - Label nearly every edge with an **active verb naming the real relationship**: "implements", "proves", "tested by", "was/becomes", "finding". An unlabeled edge is the exception.
 - Set the manifest `title` to a one-line description of the change (not "PR #482"), and `url` to the PR link when there is one — the title pill becomes a link.
