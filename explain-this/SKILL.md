@@ -30,6 +30,7 @@ Read enough surrounding source to actually review the change — risky spots, da
 | Appendix: `diff` chips (all `minimized: true`) or one `files` tray | Every changed file's **complete diff**, one click away (`git diff -U999999 <base>...HEAD -- <file>`, `-U20` for files over ~1000 lines). Chips when files dock naturally onto shapes/changesets; the tray when they don't |
 
 Rules of composition:
+- **Use un-mannered, plain language** in every title, note, and card. Say what the code does and why it matters; no throat-clearing ("It's worth noting that..."), no drama ("critically important"), no decoration. A card earns attention with its content, not its prose.
 - **Manifest order is the narrative** — the rail presents it top to bottom: summary, changesets (highest risk first), findings near their changeset, appendix last.
 - **Give every node a `group`** — 3–6 short section names chosen for *this* change ("Orientation", "The move itself", "Guardrails", "Tests", "Full diffs"), not boilerplate. The explorer renders them as sections in first-appearance order: they are the explainer's table of contents. Put the core behavioral changeset's section right after orientation so a reader can find and follow the heart of the change first; park chips and trays in a closing section. A flat ungrouped rail is acceptable only below ~8 nodes.
 - Every finding edge-links to the changeset (or slice's chip) it concerns; every chip edge-links to the changeset or step it belongs to.
