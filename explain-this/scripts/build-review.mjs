@@ -63,8 +63,22 @@ try {
   fail(`Manifest is not valid JSON: ${e.message}`);
 }
 
+// --- Normalize v2 aliases ---------------------------------------------------
+// v2 manifests keep building: slide/warning/excerpt fold into their v3
+// canonical types (markdown/callout/code); the viewer re-derives the variant
+// (markdown+slide -> slide card, callout+severity -> warning styling, code
+// with @@ hunks -> diff-slice rendering).
+if (manifest && Array.isArray(manifest.nodes)) {
+  for (const n of manifest.nodes) {
+    if (n === null || typeof n !== "object") continue;
+    if (n.type === "slide") { n.type = "markdown"; n.slide = true; }
+    else if (n.type === "warning") n.type = "callout";
+    else if (n.type === "excerpt") n.type = "code";
+  }
+}
+
 // --- Validate -------------------------------------------------------------
-const NODE_TYPES = ["mermaid", "diff", "excerpt", "changeset", "files", "markdown", "code", "warning", "callout", "shape", "image", "slide"];
+const NODE_TYPES = ["mermaid", "diff", "changeset", "files", "markdown", "code", "callout", "shape", "image"];
 const CHANGESET_KINDS = ["behavioral", "mechanical", "generated", "test", "docs", "config"];
 const RISKS = ["high", "medium", "low"];
 const TONES = ["info", "tip", "gotcha"];
@@ -110,7 +124,7 @@ manifest.nodes.forEach((n, i) => {
     errors.push(`${label}: unknown type "${n.type}" (expected ${NODE_TYPES.join(", ")})`);
     return; // type-specific checks would be noise
   }
-  const needsContent = ["mermaid", "diff", "excerpt", "markdown", "code", "warning", "callout", "slide"];
+  const needsContent = ["mermaid", "diff", "markdown", "code", "callout"];
   if (needsContent.includes(n.type) && typeof n.content !== "string") {
     errors.push(`${label}: type "${n.type}" requires a string \`content\``);
   }
@@ -126,11 +140,28 @@ manifest.nodes.forEach((n, i) => {
   if (n.line !== undefined && typeof n.line !== "number") {
     errors.push(`${label}: \`line\` must be a number`);
   }
-  if (n.type === "callout" && !TONES.includes(n.tone)) {
-    errors.push(`${label}: callout requires \`tone\` of ${TONES.join("/")}`);
+  if (n.type === "callout") {
+    const hasTone = n.tone !== undefined;
+    const hasSev = n.severity !== undefined;
+    if (hasTone && !TONES.includes(n.tone)) {
+      errors.push(`${label}: \`tone\` must be one of ${TONES.join("/")}`);
+    }
+    if (hasSev && !SEVERITIES.includes(n.severity)) {
+      errors.push(`${label}: \`severity\` must be one of ${SEVERITIES.join("/")}`);
+    }
+    if (!hasTone && !hasSev) {
+      errors.push(`${label}: callout requires \`tone\` (${TONES.join("/")}, an annotation) or \`severity\` (${SEVERITIES.join("/")}, a finding)`);
+    } else if (hasTone && hasSev) {
+      errors.push(`${label}: callout takes \`tone\` or \`severity\`, not both`);
+    }
   }
-  if (n.type === "slide" && n.color !== undefined && !PALETTE.includes(n.color)) {
-    errors.push(`${label}: unknown color "${n.color}" (palette: ${PALETTE.join(", ")})`);
+  if (n.type === "markdown") {
+    if (n.slide !== undefined && typeof n.slide !== "boolean") {
+      errors.push(`${label}: \`slide\` must be a boolean`);
+    }
+    if (n.color !== undefined && !PALETTE.includes(n.color)) {
+      errors.push(`${label}: unknown color "${n.color}" (palette: ${PALETTE.join(", ")})`);
+    }
   }
   if (n.type === "changeset") {
     if (n.kind !== undefined && !CHANGESET_KINDS.includes(n.kind)) {
@@ -176,9 +207,6 @@ manifest.nodes.forEach((n, i) => {
       });
     }
   }
-  if (n.type === "warning" && !SEVERITIES.includes(n.severity)) {
-    errors.push(`${label}: warning requires \`severity\` of ${SEVERITIES.join("/")}`);
-  }
   if (n.type === "shape") {
     if (!SHAPES.includes(n.shape)) errors.push(`${label}: \`shape\` must be one of ${SHAPES.join(", ")}`);
     if (typeof n.label !== "string" || !n.label.trim()) errors.push(`${label}: shape requires a string \`label\``);
@@ -186,17 +214,17 @@ manifest.nodes.forEach((n, i) => {
       errors.push(`${label}: unknown color "${n.color}" (palette: ${PALETTE.join(", ")})`);
     }
   }
-  if (n.type === "diff" || n.type === "excerpt") {
+  if (n.type === "diff" || n.type === "code") {
     if (n.status !== undefined && !FILE_STATUSES.includes(n.status)) {
       errors.push(`${label}: \`status\` must be one of ${FILE_STATUSES.join(", ")}`);
     }
   }
-  if (n.type === "diff") {
+  if (n.type === "diff" || n.type === "code") {
     if (n.minimized !== undefined && typeof n.minimized !== "boolean") {
       errors.push(`${label}: \`minimized\` must be a boolean`);
     }
     if (n.minimized && typeof n.file !== "string") {
-      errors.push(`${label}: a minimized diff needs \`file\` (shown on the chip)`);
+      errors.push(`${label}: a minimized ${n.type} needs \`file\` (shown on the chip)`);
     }
   }
   if (n.href !== undefined && !/^https?:\/\//.test(String(n.href))) {

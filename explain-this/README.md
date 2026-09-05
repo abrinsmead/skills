@@ -1,21 +1,21 @@
-# visual-code-reviewer
+# explain-this
 
 An [agent skill](https://agentskills.io) that reviews **diffs and explains existing code** on an interactive canvas. Point it at a PR, branch, or working diff and it composes a visual review — changesets, diff slices, diagrams, notes, screenshots, and P0/P1/P2 warnings connected by labeled edges — or point it at existing code for a guided tour with line-numbered source, architecture diagrams, and gotcha/tip callouts. Each generated file is fully self-contained — nothing to run or host, no network requests, works offline.
 
-![Review canvas rendered by visual-code-reviewer](../docs/screenshot-visual-code-reviewer.png)
+![Review canvas rendered by explain-this](../docs/screenshot-explain-this.png)
 
 ## Install
 
 Installs via [skills.sh](https://skills.sh), the open agent skills CLI:
 
 ```
-npx skills add abrinsmead/skills/visual-code-reviewer
+npx skills add abrinsmead/skills/explain-this
 ```
 
 Update:
 
 ```
-npx skills update visual-code-reviewer
+npx skills update explain-this
 ```
 
 `add` takes the full `owner/repo/skill` source path; `update` takes the installed skill's name.
